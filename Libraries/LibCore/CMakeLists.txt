@@ -121,7 +121,11 @@ if (APPLE)
 endif()
 
 ladybird_lib(LibCore core EXPLICIT_SYMBOL_EXPORT)
-target_link_libraries(LibCore PRIVATE Threads::Threads LibUnicode LibTextCodec mimalloc)
+target_link_libraries(LibCore PRIVATE Threads::Threads LibUnicode LibTextCodec)
+# NB: Android uses the system allocator; see AK/kmalloc.cpp.
+if (NOT ANDROID)
+    target_link_libraries(LibCore PRIVATE mimalloc)
+endif()
 
 # Development builds are in no stage of development, and leave it out of their product name.
 set(browser_is_release_build 0)

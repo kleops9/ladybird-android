@@ -14,7 +14,7 @@
 #include <LibCore/System.h>
 #include <LibCore/Timer.h>
 
-#if !__has_feature(address_sanitizer) && !defined(__SANITIZE_ADDRESS__) && !defined(HAS_THREAD_SANITIZER)
+#if !__has_feature(address_sanitizer) && !defined(__SANITIZE_ADDRESS__) && !defined(HAS_THREAD_SANITIZER) && !defined(AK_OS_ANDROID)
 #    include <mimalloc.h>
 #endif
 
@@ -88,7 +88,7 @@ void StatsLog::start_sampling(Function<void(JsonObject&)> collect_values)
 void StatsLog::sample()
 {
     JsonObject values;
-#if !__has_feature(address_sanitizer) && !defined(__SANITIZE_ADDRESS__) && !defined(HAS_THREAD_SANITIZER)
+#if !__has_feature(address_sanitizer) && !defined(__SANITIZE_ADDRESS__) && !defined(HAS_THREAD_SANITIZER) && !defined(AK_OS_ANDROID)
     size_t current_rss = 0, peak_rss = 0, current_commit = 0, peak_commit = 0;
     mi_process_info(nullptr, nullptr, nullptr, &current_rss, &peak_rss, &current_commit, &peak_commit, nullptr);
     values.set("mimalloc.current_rss_bytes"sv, current_rss);

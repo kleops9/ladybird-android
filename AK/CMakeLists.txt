@@ -85,11 +85,14 @@ if (ANDROID)
     target_link_libraries(AK PRIVATE log)
 endif()
 
-set(MIMALLOC_VISIBILITY PRIVATE)
-if (NOT BUILD_SHARED_LIBS)
-    set(MIMALLOC_VISIBILITY PUBLIC)
+# NB: Android uses the system allocator; see kmalloc.cpp.
+if (NOT ANDROID)
+    set(MIMALLOC_VISIBILITY PRIVATE)
+    if (NOT BUILD_SHARED_LIBS)
+        set(MIMALLOC_VISIBILITY PUBLIC)
+    endif()
+    target_link_libraries(AK ${MIMALLOC_VISIBILITY} mimalloc)
 endif()
-target_link_libraries(AK ${MIMALLOC_VISIBILITY} mimalloc)
 
 # FIXME: Make this generic for all imported shared library dependencies and apply globally
 if (BUILD_SHARED_LIBS AND NOT CMAKE_SKIP_INSTALL_RULES AND NOT "${VCPKG_INSTALLED_DIR}" STREQUAL "")

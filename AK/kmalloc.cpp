@@ -18,6 +18,9 @@
 // and reused on another inside mimalloc, so sanitizer builds fall back to the
 // system allocator.
 #    define AK_USE_SYSTEM_ALLOCATOR_INSTRUMENTED 1
+#elif defined(AK_OS_ANDROID)
+// mimalloc's free lists get corrupted in Android's helper processes, so Android keeps its own allocator, Scudo.
+#    define AK_USE_SYSTEM_ALLOCATOR_INSTRUMENTED 1
 #else
 #    include <mimalloc.h>
 #    ifdef AK_OS_MACOS

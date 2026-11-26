@@ -6,7 +6,9 @@ if (NOT WIN32 AND NOT ANDROID)
     pkg_check_modules(LIBEDIT REQUIRED IMPORTED_TARGET libedit)
 endif()
 
-find_package(mimalloc CONFIG REQUIRED)
+if (NOT ANDROID)
+    find_package(mimalloc CONFIG REQUIRED)
+endif()
 
 # AK dependencies
 find_package(Backtrace)

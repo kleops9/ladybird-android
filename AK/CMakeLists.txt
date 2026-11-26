@@ -80,6 +80,10 @@ endif()
 configure_file(Backtrace.h.in Backtrace.h @ONLY)
 
 target_link_libraries(AK PRIVATE FastFloat::fast_float simdutf::simdutf zmij::zmij)
+if (ANDROID)
+    # dbgln() and failed assertions go to the system log.
+    target_link_libraries(AK PRIVATE log)
+endif()
 
 set(MIMALLOC_VISIBILITY PRIVATE)
 if (NOT BUILD_SHARED_LIBS)

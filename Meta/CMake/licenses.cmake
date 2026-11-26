@@ -56,11 +56,17 @@ add_custom_command(
 )
 
 # about:licenses decompresses the file itself, and falls back to the uncompressed one.
-set(brotli_hints "")
-if (NOT "${VCPKG_INSTALLED_DIR}" STREQUAL "" AND NOT "${VCPKG_TARGET_TRIPLET}" STREQUAL "")
-    list(APPEND brotli_hints "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/tools/brotli")
+# A cross build's vcpkg tools are built for the target, so they can't run here; it looks for the host's brotli instead,
+# skipping CMAKE_PROGRAM_PATH, where vcpkg's toolchain puts the target's tools.
+if (CMAKE_CROSSCOMPILING)
+    find_program(BROTLI_EXECUTABLE brotli NO_CMAKE_PATH)
+else()
+    set(brotli_hints "")
+    if (NOT "${VCPKG_INSTALLED_DIR}" STREQUAL "" AND NOT "${VCPKG_TARGET_TRIPLET}" STREQUAL "")
+        list(APPEND brotli_hints "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/tools/brotli")
+    endif()
+    find_program(BROTLI_EXECUTABLE brotli HINTS ${brotli_hints})
 endif()
-find_program(BROTLI_EXECUTABLE brotli HINTS ${brotli_hints})
 
 if (BROTLI_EXECUTABLE)
     set(LADYBIRD_LICENSES_FILE "${licenses_text_file}.br")

@@ -32,7 +32,8 @@ project(ladybird
     HOMEPAGE_URL "https://ladybird.org"
 )
 
-if (ANDROID OR IOS)
+# Android runs the helper processes as executables of their own, which share the libraries as on Linux.
+if (IOS)
     set(BUILD_SHARED_LIBS OFF)
 endif()
 
@@ -141,13 +142,10 @@ if (ENABLE_GUI_TARGETS)
     add_subdirectory(Services)
     add_subdirectory(UI)
 
-    # Android has no Compositor process yet, so it keeps Skia elsewhere.
-    if (NOT ANDROID AND NOT VCPKG_TARGET_ANDROID)
-        include(check_skia_confinement)
-        set(processes_without_skia ${ladybird_helper_processes} ladybird WebDriver)
-        list(REMOVE_ITEM processes_without_skia Compositor)
-        ladybird_check_skia_confinement(${processes_without_skia})
-    endif()
+    include(check_skia_confinement)
+    set(processes_without_skia ${ladybird_helper_processes} ladybird WebDriver)
+    list(REMOVE_ITEM processes_without_skia Compositor)
+    ladybird_check_skia_confinement(${processes_without_skia})
 endif()
 
 include(packaging)

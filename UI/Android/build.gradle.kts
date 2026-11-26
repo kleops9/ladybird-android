@@ -54,6 +54,18 @@ android {
     }
 
     buildTypes {
+        debug {
+            externalNativeBuild {
+                cmake {
+                    // A CMake Debug build compiles with -ggdb3, which makes each LibWeb object ~12 MB and every
+                    // binary that links LibWeb several GB. Line tables (-g1) still give symbolized backtraces.
+                    arguments += "-DCMAKE_BUILD_TYPE=RelWithDebInfo"
+                    // The Lagom tools are exported without a configuration (NOCONFIG), which vcpkg's default
+                    // RelWithDebInfo mapping does not fall back to.
+                    arguments += "-DCMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO=RelWithDebInfo;Release;None;NOCONFIG;"
+                }
+            }
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(

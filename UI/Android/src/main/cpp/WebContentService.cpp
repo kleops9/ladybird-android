@@ -30,6 +30,7 @@
 #include <LibWebView/SiteIsolation.h>
 #include <LibWebView/Utilities.h>
 #include <WebContent/ConnectionFromClient.h>
+#include <WebContent/PageClient.h>
 #include <WebContent/PageHost.h>
 
 static ErrorOr<NonnullRefPtr<Requests::RequestClient>> bind_request_server_service()
@@ -46,9 +47,21 @@ static ErrorOr<void> load_content_filters();
 
 static ErrorOr<void> load_autoplay_allowlist();
 
+// Set from the Java side (the "Rendering" setting) before service_main() runs.
+static bool s_force_cpu_painting = false;
+
+void set_force_cpu_painting(bool force_cpu_painting)
+{
+    s_force_cpu_painting = force_cpu_painting;
+}
+
 ErrorOr<int> service_main(int ipc_socket)
 {
     Core::EventLoop event_loop;
+
+    // GPU painting rasterizes with Vulkan and reads every frame back for the UI; CPU painting rasterizes with Skia's
+    // CPU backend straight into the shared bitmap. Which is faster depends on the device.
+    WebContent::PageClient::set_use_skia_painter(s_force_cpu_painting ? WebContent::PageClient::UseSkiaPainter::CPUBackend : WebContent::PageClient::UseSkiaPainter::GPUBackendIfAvailable);
 
     Web::Platform::EventLoopPlugin::install(*new Web::Platform::EventLoopPluginSerenity);
 

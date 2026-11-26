@@ -8,62 +8,558 @@ package org.serenityos.ladybird
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.util.AttributeSet
+import android.graphics.Matrix
+import android.graphics.SurfaceTexture
+import android.text.InputType
+import android.view.GestureDetector
+import android.view.HapticFeedbackConstants
+import android.view.KeyEvent
 import android.view.MotionEvent
-import android.view.View
+import android.view.ScaleGestureDetector
+import android.view.Surface
+import android.view.TextureView
+import android.view.inputmethod.BaseInputConnection
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
+import android.view.inputmethod.InputMethodManager
+import android.widget.OverScroller
+import kotlin.math.roundToInt
 
+/** Receives page events for one WebView. Implemented by Tab. */
+interface WebViewClient {
+    fun onLoadStart(url: String, isRedirect: Boolean)
+    fun onLoadFinish(url: String)
+    fun onUrlChange(url: String)
+    fun onTitleChange(title: String)
+    fun onFaviconChange(favicon: Bitmap)
+    fun onNavigationButtonsStateChanged(back: Boolean, forward: Boolean)
+    fun onThemeColorChange(color: Int)
+    fun onNewWebView(activate: Boolean, pageIndex: Long): String?
+    fun onCloseRequested()
+    fun onActivateRequested()
+    fun onContextMenu(kind: Int, url: String?, x: Int, y: Int)
+    fun onRequestAlert(message: String)
+    fun onRequestConfirm(message: String)
+    fun onRequestPrompt(message: String, default: String)
+    fun onRequestSelectDropdown(labels: Array<String>, ids: IntArray, enabled: BooleanArray, selectedIndex: Int)
+    fun onResourceStatusChange(countWaiting: Int)
+    fun onWebContentCrashed()
+    fun onRequestDownload(url: String, contentDisposition: String, mimeType: String)
+    fun onFindInPageResult(currentIndex: Int, totalMatches: Int)
+    fun onZoomChanged(level: Float)
+}
+
+/**
+ * Shows one page and turns touch and keyboard input into the mouse, wheel and key events Ladybird understands:
+ * a tap is a click, a drag or fling scrolls, a long press opens the context menu, and a pinch zooms.
+ */
 // FIXME: This should (eventually) implement NestedScrollingChild3 and ScrollingView
-class WebView(context: Context, attributeSet: AttributeSet) : View(context, attributeSet) {
-    private val viewImpl = WebViewImplementation(this)
-    private lateinit var contentBitmap: Bitmap
-    var onLoadStart: (url: String, isRedirect: Boolean) -> Unit = { _, _ -> }
+//
+// Frames are presented by native code straight into this TextureView's buffer as soon as WebContent finishes them,
+// so drawing a page involves no Java code, no Bitmap and no per-frame texture upload.
+class WebView(context: Context) : TextureView(context), TextureView.SurfaceTextureListener {
+    val impl = WebViewImplementation(this)
+    var client: WebViewClient? = null
+    private var zoomLevel = 1f
+    private var surface: Surface? = null
+    /** The size the page lays out at, known before the view is on screen (see [presize]). */
+    private var pageWidth = 0
+    private var pageHeight = 0
 
-    fun initialize(resourceDir: String) {
-        viewImpl.initialize(resourceDir)
+    var isFocusedEditable = false
+        private set
+
+    /** Incognito pages ask the keyboard not to learn from what is typed. */
+    var isIncognito = false
+
+    init {
+        isFocusable = true
+        isFocusableInTouchMode = true
+        // The framework would otherwise grey out the whole page while it has focus.
+        defaultFocusHighlightEnabled = false
+        isOpaque = true
+        surfaceTextureListener = this
+    }
+
+    fun initialize(parent: WebView? = null, pageIndex: Long = -1) {
+        impl.initialize(parent?.impl, pageIndex)
+        if (pageWidth > 0 && pageHeight > 0)
+            pushGeometry(pageWidth, pageHeight)
+        surface?.let { impl.setSurface(it) }
     }
 
     fun dispose() {
-        viewImpl.dispose()
+        scroller.forceFinished(true)
+        if (impl.isInitialized)
+            impl.setSurface(null)
+        impl.dispose()
     }
 
-    fun loadURL(url: String) {
-        viewImpl.loadURL(url)
+    // --- SurfaceTextureListener: the buffer native code presents into. It goes away while the view is detached
+    // (e.g. its tab is in the background) and comes back when it's shown again. ---
+
+    override fun onSurfaceTextureAvailable(texture: SurfaceTexture, width: Int, height: Int) {
+        val newSurface = Surface(texture)
+        surface = newSurface
+        if (impl.isInitialized)
+            impl.setSurface(newSurface)
     }
 
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        // The native side only supports down, move, and up events.
-        // So, ignore any other MotionEvents.
-        if (event.action != MotionEvent.ACTION_DOWN &&
-            event.action != MotionEvent.ACTION_MOVE &&
-            event.action != MotionEvent.ACTION_UP) {
-            return super.onTouchEvent(event);
+    override fun onSurfaceTextureSizeChanged(texture: SurfaceTexture, width: Int, height: Int) {}
+
+    override fun onSurfaceTextureDestroyed(texture: SurfaceTexture): Boolean {
+        if (impl.isInitialized)
+            impl.setSurface(null)
+        surface?.release()
+        surface = null
+        return true
+    }
+
+    override fun onSurfaceTextureUpdated(texture: SurfaceTexture) {}
+
+    fun loadURL(url: String) = impl.loadURL(url)
+
+    val currentZoom get() = zoomLevel
+
+    fun zoom(direction: Int): Float {
+        zoomLevel = impl.zoom(direction)
+        return zoomLevel
+    }
+
+    /** Frames received from WebContent, for the frame rate overlay. */
+    var framesReceived = 0L
+        private set
+
+    /** Called by the native view when a new frame is ready (native code has already presented it). */
+    fun onFrameReady() {
+        ++framesReceived
+        (client as? Tab)?.onFrameForTiming()
+        if (pinchCommitTime != 0L && android.os.SystemClock.uptimeMillis() - pinchCommitTime >= PINCH_SETTLE_MS)
+            endPinchPreview()
+    }
+
+    /**
+     * Gives the page its size before the view is on screen, so a tab opened in the background
+     * lays out and paints at the size it will be shown at.
+     */
+    fun presize(w: Int, h: Int) {
+        if (w <= 0 || h <= 0 || (pageWidth == w && pageHeight == h))
+            return
+        pageWidth = w
+        pageHeight = h
+        if (impl.isInitialized)
+            pushGeometry(w, h)
+    }
+
+    /** A scaled-down copy of the page, for the tab switcher. */
+    fun captureThumbnail(maxWidth: Int): Bitmap? {
+        if (!impl.isInitialized || pageWidth <= 0 || pageHeight <= 0)
+            return null
+        val thumbnailHeight = (pageHeight * maxWidth.toFloat() / pageWidth).roundToInt().coerceAtLeast(1)
+        // On screen, the GPU scales the texture down for us.
+        if (isAvailable && !isShowingPinchPreview)
+            getBitmap(maxWidth, thumbnailHeight)?.let { return it }
+        // A tab that was never shown has no texture: copy its last frame out of native code instead.
+        val full = Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
+        impl.drawIntoBitmap(full)
+        val scaled = Bitmap.createScaledBitmap(full, maxWidth, thumbnailHeight, true)
+        if (scaled !== full)
+            full.recycle()
+        return scaled
+    }
+
+    fun onFocusedEditableChange(editable: Boolean) {
+        isFocusedEditable = editable
+        val imm = context.getSystemService(InputMethodManager::class.java)
+        if (editable) {
+            requestFocus()
+            imm.restartInput(this)
+            imm.showSoftInput(this, 0)
+        } else if (hasFocus()) {
+            imm.hideSoftInputFromWindow(windowToken, 0)
+        }
+    }
+
+    // --- Touch input ---
+
+    private val density get() = resources.displayMetrics.density
+    private val scroller = OverScroller(context)
+    private var lastFlingX = 0
+    private var lastFlingY = 0
+    private var wheelRemainderX = 0f
+    private var wheelRemainderY = 0f
+    private var isScrolling = false
+
+    /** Wheel deltas are in CSS pixels; finger movement is in device pixels. */
+    private fun sendScroll(dx: Float, dy: Float, x: Float, y: Float) {
+        val scale = density * zoomLevel
+        wheelRemainderX += dx / scale
+        wheelRemainderY += dy / scale
+        val wheelX = wheelRemainderX.toInt()
+        val wheelY = wheelRemainderY.toInt()
+        if (wheelX == 0 && wheelY == 0)
+            return
+        wheelRemainderX -= wheelX
+        wheelRemainderY -= wheelY
+        val location = IntArray(2).also { getLocationOnScreen(it) }
+        impl.mouseEvent(WebViewImplementation.MOUSE_WHEEL, x, y, x + location[0], y + location[1], WebViewImplementation.BUTTON_NONE, wheelX, wheelY)
+    }
+
+    private fun sendClick(event: MotionEvent, button: Int) {
+        val x = event.x
+        val y = event.y
+        impl.mouseEvent(WebViewImplementation.MOUSE_MOVE, x, y, event.rawX, event.rawY, WebViewImplementation.BUTTON_NONE)
+        impl.mouseEvent(WebViewImplementation.MOUSE_DOWN, x, y, event.rawX, event.rawY, button)
+        impl.mouseEvent(WebViewImplementation.MOUSE_UP, x, y, event.rawX, event.rawY, button)
+    }
+
+    private val flingRunnable = object : Runnable {
+        override fun run() {
+            if (!impl.isInitialized || !scroller.computeScrollOffset())
+                return
+            val dx = scroller.currX - lastFlingX
+            val dy = scroller.currY - lastFlingY
+            lastFlingX = scroller.currX
+            lastFlingY = scroller.currY
+            sendScroll(dx.toFloat(), dy.toFloat(), width / 2f, height / 2f)
+            postOnAnimation(this)
+        }
+    }
+
+    private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onDown(e: MotionEvent): Boolean {
+            scroller.forceFinished(true)
+            isScrolling = false
+            return true
         }
 
-        // FIXME: We are passing these through as mouse events.
-        // We should really be handling them as touch events.
-        // (And we should handle scrolling - right now you have tap and drag the scrollbar!)
-        viewImpl.mouseEvent(event.action, event.x, event.y, event.rawX, event.rawY)
+        override fun onSingleTapUp(e: MotionEvent): Boolean {
+            requestFocus()
+            sendClick(e, WebViewImplementation.BUTTON_PRIMARY)
+            // Tapping an input that already has focus doesn't send a focus change, so bring the keyboard back here.
+            if (isFocusedEditable)
+                context.getSystemService(InputMethodManager::class.java).showSoftInput(this@WebView, 0)
+            return true
+        }
 
+        override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
+            isScrolling = true
+            sendScroll(distanceX, distanceY, e2.x, e2.y)
+            return true
+        }
+
+        override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+            lastFlingX = 0
+            lastFlingY = 0
+            scroller.fling(0, 0, -velocityX.roundToInt(), -velocityY.roundToInt(), Int.MIN_VALUE, Int.MAX_VALUE, Int.MIN_VALUE, Int.MAX_VALUE)
+            postOnAnimation(flingRunnable)
+            return true
+        }
+
+        override fun onLongPress(e: MotionEvent) {
+            if (isScrolling)
+                return
+            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            sendClick(e, WebViewImplementation.BUTTON_SECONDARY)
+        }
+    })
+
+    // --- Pinch to zoom ---
+    //
+    // Ladybird has no visual viewport scaling yet, so a pinch zooms the page (like the menu's zoom buttons). While the
+    // fingers move, the last frame is scaled on screen for immediate feedback; on release the scale becomes the page's
+    // zoom level, and the page is scrolled so that the content under the fingers stays where it is.
+
+    private val pinchMatrix = Matrix()
+    private val pinchValues = FloatArray(9)
+    private var isPinching = false
+    private var lastFocusX = 0f
+    private var lastFocusY = 0f
+    /** When the zoom was committed; the scaled preview stays up until a frame at the new zoom arrives. */
+    private var pinchCommitTime = 0L
+    /** Set when a second finger lands: the rest of this touch sequence belongs to the pinch, not to taps or scrolls. */
+    private var touchIsMultiFinger = false
+
+    private val scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+            scroller.forceFinished(true)
+            endPinchPreview()
+            isPinching = true
+            // Hold the current frame on screen; frames rendered at the old zoom would fight the preview.
+            impl.setPresentationPaused(true)
+            lastFocusX = detector.focusX
+            lastFocusY = detector.focusY
+            return true
+        }
+
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            pinchMatrix.getValues(pinchValues)
+            val current = pinchValues[Matrix.MSCALE_X]
+            val target = (current * detector.scaleFactor).coerceIn(MIN_ZOOM / zoomLevel, MAX_ZOOM / zoomLevel)
+            val factor = target / current
+            pinchMatrix.postScale(factor, factor, detector.focusX, detector.focusY)
+            pinchMatrix.postTranslate(detector.focusX - lastFocusX, detector.focusY - lastFocusY)
+            lastFocusX = detector.focusX
+            lastFocusY = detector.focusY
+            setTransform(pinchMatrix)
+            return true
+        }
+
+        override fun onScaleEnd(detector: ScaleGestureDetector) {
+            isPinching = false
+            commitPinch()
+        }
+    })
+
+    private fun commitPinch() {
+        pinchMatrix.getValues(pinchValues)
+        val scale = pinchValues[Matrix.MSCALE_X]
+        val translateX = pinchValues[Matrix.MTRANS_X]
+        val translateY = pinchValues[Matrix.MTRANS_Y]
+        if (kotlin.math.abs(scale - 1f) < 0.02f) {
+            // Barely a zoom: treat it as a two-finger drag.
+            endPinchPreview()
+            sendScroll(-translateX, -translateY, width / 2f, height / 2f)
+            return
+        }
+        zoomLevel = impl.setZoom((zoomLevel * scale * 100).roundToInt() / 100f)
+        // A point q on screen showed CSS point scroll + (q - t) / (s * density * zoom); keep it there after zooming.
+        // That works out to scrolling by -t in device pixels at the new zoom, whatever q is.
+        wheelRemainderX = 0f
+        wheelRemainderY = 0f
+        sendScroll(-translateX, -translateY, width / 2f, height / 2f)
+        pinchCommitTime = android.os.SystemClock.uptimeMillis()
+        postDelayed({ if (pinchCommitTime != 0L) endPinchPreview() }, PINCH_PREVIEW_TIMEOUT_MS)
+        client?.onZoomChanged(zoomLevel)
+    }
+
+    private fun endPinchPreview() {
+        pinchMatrix.reset()
+        pinchCommitTime = 0L
+        setTransform(null)
+        if (impl.isInitialized)
+            impl.setPresentationPaused(false)
+    }
+
+    private val isShowingPinchPreview get() = isPinching || pinchCommitTime != 0L
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (!impl.isInitialized)
+            return false
+        scaleDetector.onTouchEvent(event)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> touchIsMultiFinger = false
+            MotionEvent.ACTION_POINTER_DOWN -> if (!touchIsMultiFinger) {
+                touchIsMultiFinger = true
+                // Stop the single-finger gesture in progress (pending long press, scroll).
+                val cancel = MotionEvent.obtain(event).apply { action = MotionEvent.ACTION_CANCEL }
+                gestureDetector.onTouchEvent(cancel)
+                cancel.recycle()
+            }
+        }
+        if (touchIsMultiFinger)
+            return true
+        return gestureDetector.onTouchEvent(event) || super.onTouchEvent(event)
+    }
+
+    override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        // Mouse wheel and trackpad scrolling (e.g. a mouse attached to the device, or the emulator).
+        if (impl.isInitialized && event.action == MotionEvent.ACTION_SCROLL) {
+            val step = 48 * density
+            sendScroll(-event.getAxisValue(MotionEvent.AXIS_HSCROLL) * step, -event.getAxisValue(MotionEvent.AXIS_VSCROLL) * step, event.x, event.y)
+            return true
+        }
+        return super.onGenericMotionEvent(event)
+    }
+
+    // --- Keyboard input ---
+
+    override fun onCheckIsTextEditor() = isFocusedEditable
+
+    override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
+        if (!isFocusedEditable)
+            return null
+        outAttrs.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT
+        outAttrs.imeOptions = EditorInfo.IME_ACTION_GO or EditorInfo.IME_FLAG_NO_EXTRACT_UI or EditorInfo.IME_FLAG_NO_FULLSCREEN
+        if (isIncognito)
+            outAttrs.imeOptions = outAttrs.imeOptions or EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+        return PageInputConnection()
+    }
+
+    /**
+     * The page owns the text, so the keyboard's edits are replayed as key presses. While the keyboard is
+     * composing a word, each update is applied as "backspace what changed, type the new ending".
+     */
+    private inner class PageInputConnection : BaseInputConnection(this@WebView, false) {
+        private var composing = ""
+
+        private fun typeText(text: String) {
+            var index = 0
+            while (index < text.length) {
+                val codePoint = text.codePointAt(index)
+                index += Character.charCount(codePoint)
+                if (codePoint == '\n'.code) {
+                    sendKey(KEY_RETURN, '\n'.code)
+                } else {
+                    sendKey(keyCodeForCodePoint(codePoint), codePoint)
+                }
+            }
+        }
+
+        private fun backspace(count: Int) = repeat(count) { sendKey(KEY_BACKSPACE, 0) }
+
+        private fun replaceComposing(newText: String) {
+            val common = composing.commonPrefixWith(newText).length
+            backspace(composing.codePointCount(common, composing.length))
+            typeText(newText.substring(common))
+            composing = newText
+        }
+
+        override fun setComposingText(text: CharSequence, newCursorPosition: Int): Boolean {
+            replaceComposing(text.toString())
+            return true
+        }
+
+        override fun commitText(text: CharSequence, newCursorPosition: Int): Boolean {
+            replaceComposing(text.toString())
+            composing = ""
+            return true
+        }
+
+        override fun finishComposingText(): Boolean {
+            composing = ""
+            return true
+        }
+
+        override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+            backspace(beforeLength)
+            repeat(afterLength) { sendKey(KEY_DELETE, 0) }
+            return true
+        }
+
+        override fun performEditorAction(actionCode: Int): Boolean {
+            composing = ""
+            sendKey(KEY_RETURN, '\n'.code)
+            return true
+        }
+
+        override fun sendKeyEvent(event: KeyEvent): Boolean {
+            dispatchPageKey(event)
+            return true
+        }
+    }
+
+    private fun sendKey(key: Int, codePoint: Int, modifiers: Int = 0) {
+        impl.keyEvent(true, key, modifiers, codePoint)
+        impl.keyEvent(false, key, modifiers, codePoint)
+    }
+
+    /** Hardware keyboards (and the emulator's host keyboard) send KeyEvents directly. */
+    private fun dispatchPageKey(event: KeyEvent): Boolean {
+        if (!impl.isInitialized)
+            return false
+        val down = when (event.action) {
+            KeyEvent.ACTION_DOWN -> true
+            KeyEvent.ACTION_UP -> false
+            else -> return false
+        }
+        var modifiers = 0
+        if (event.isAltPressed) modifiers = modifiers or MOD_ALT
+        if (event.isCtrlPressed) modifiers = modifiers or MOD_CTRL
+        if (event.isShiftPressed) modifiers = modifiers or MOD_SHIFT
+        if (event.isMetaPressed) modifiers = modifiers or MOD_SUPER
+
+        val special = specialKeys[event.keyCode]
+        val unicode = event.unicodeChar
+        val codePoint = when {
+            event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER -> '\n'.code
+            special != null -> 0
+            else -> unicode
+        }
+        val key = special ?: keyCodeForCodePoint(unicode)
+        if (key == 0 && codePoint == 0)
+            return false
+        impl.keyEvent(down, key, modifiers, codePoint)
         return true
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK)
+            return super.onKeyDown(keyCode, event)
+        return dispatchPageKey(event) || super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK)
+            return super.onKeyUp(keyCode, event)
+        return dispatchPageKey(event) || super.onKeyUp(keyCode, event)
+    }
+
+    override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: android.graphics.Rect?) {
+        super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
+        if (impl.isInitialized)
+            impl.setHasFocus(gainFocus)
+    }
+
+    // --- Drawing ---
+
+    private fun pushGeometry(w: Int, h: Int) {
+        impl.setDevicePixelRatio(density)
+        impl.setViewportGeometry(w, h)
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        contentBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-
-        val pixelDensity = context.resources.displayMetrics.density
-        viewImpl.setDevicePixelRatio(pixelDensity)
-
-        // FIXME: Account for scroll offset when view supports scrolling
-        viewImpl.setViewportGeometry(w, h)
+        if (w <= 0 || h <= 0 || (w == pageWidth && h == pageHeight))
+            return
+        pageWidth = w
+        pageHeight = h
+        if (impl.isInitialized)
+            pushGeometry(w, h)
     }
 
-    override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
+    companion object {
+        // Pinch zoom range; Ladybird itself allows 30% to 500%.
+        const val MIN_ZOOM = 0.5f
+        const val MAX_ZOOM = 3f
+        private const val PINCH_SETTLE_MS = 120L
+        private const val PINCH_PREVIEW_TIMEOUT_MS = 700L
 
-        viewImpl.drawIntoBitmap(contentBitmap);
-        canvas.drawBitmap(contentBitmap, 0f, 0f, null)
+        // Web::UIEvents::KeyCode values (Windows virtual key codes).
+        const val KEY_BACKSPACE = 0x08
+        const val KEY_TAB = 0x09
+        const val KEY_RETURN = 0x0D
+        const val KEY_ESCAPE = 0x1B
+        const val KEY_DELETE = 0x2E
+
+        // Web::UIEvents::KeyModifier values.
+        const val MOD_ALT = 1
+        const val MOD_CTRL = 2
+        const val MOD_SHIFT = 4
+        const val MOD_SUPER = 8
+
+        private val specialKeys = mapOf(
+            KeyEvent.KEYCODE_DEL to KEY_BACKSPACE,
+            KeyEvent.KEYCODE_FORWARD_DEL to KEY_DELETE,
+            KeyEvent.KEYCODE_TAB to KEY_TAB,
+            KeyEvent.KEYCODE_ENTER to KEY_RETURN,
+            KeyEvent.KEYCODE_NUMPAD_ENTER to KEY_RETURN,
+            KeyEvent.KEYCODE_ESCAPE to KEY_ESCAPE,
+            KeyEvent.KEYCODE_PAGE_UP to 0x21,
+            KeyEvent.KEYCODE_PAGE_DOWN to 0x22,
+            KeyEvent.KEYCODE_MOVE_END to 0x23,
+            KeyEvent.KEYCODE_MOVE_HOME to 0x24,
+            KeyEvent.KEYCODE_DPAD_LEFT to 0x25,
+            KeyEvent.KEYCODE_DPAD_UP to 0x26,
+            KeyEvent.KEYCODE_DPAD_RIGHT to 0x27,
+            KeyEvent.KEYCODE_DPAD_DOWN to 0x28,
+        )
+
+        fun keyCodeForCodePoint(codePoint: Int): Int = when (codePoint) {
+            in 'a'.code..'z'.code -> codePoint - 'a'.code + 'A'.code
+            in 'A'.code..'Z'.code, in '0'.code..'9'.code -> codePoint
+            ' '.code -> 0x20
+            else -> 0
+        }
     }
-
 }

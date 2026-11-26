@@ -29,28 +29,65 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Ladybird"
+        android:usesCleartextTraffic="true"
         tools:targetApi="33">
         <activity
             android:name=".LadybirdActivity"
             android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|layoutDirection|locale|fontScale|keyboard|keyboardHidden|navigation|mcc|mnc|density"
             android:exported="true"
             android:launchMode="singleTop"
-            android:screenOrientation="unspecified">
+            android:screenOrientation="unspecified"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
             </intent-filter>
 
             <meta-data
                 android:name="android.app.extract_android_style"
                 android:value="minimal" />
         </activity>
+        <!-- One process per live tab; see WebContentSlots.kt. -->
         <service
-            android:name=".WebContentService"
+            android:name=".WebContentService0"
             android:enabled="true"
             android:exported="false"
-            android:process=":WebContent" />
+            android:process=":WebContent0" />
+        <service
+            android:name=".WebContentService1"
+            android:enabled="true"
+            android:exported="false"
+            android:process=":WebContent1" />
+        <service
+            android:name=".WebContentService2"
+            android:enabled="true"
+            android:exported="false"
+            android:process=":WebContent2" />
+        <service
+            android:name=".WebContentService3"
+            android:enabled="true"
+            android:exported="false"
+            android:process=":WebContent3" />
+        <service
+            android:name=".WebContentService4"
+            android:enabled="true"
+            android:exported="false"
+            android:process=":WebContent4" />
+        <service
+            android:name=".WebContentService5"
+            android:enabled="true"
+            android:exported="false"
+            android:process=":WebContent5" />
         <service
             android:name=".RequestServerService"
             android:enabled="true"

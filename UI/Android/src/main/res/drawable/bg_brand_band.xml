@@ -1,0 +1,22 @@
+<!-- The ladybird.org brand band (used for incognito): indigo at 160°, with slate light from the top right. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="290"
+                android:endColor="@color/brand_indigo_900"
+                android:startColor="@color/brand_indigo" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:centerX="1"
+                android:centerY="0"
+                android:endColor="#006D98CC"
+                android:gradientRadius="360dp"
+                android:startColor="#666D98CC"
+                android:type="radial" />
+        </shape>
+    </item>
+</layer-list>

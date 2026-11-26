@@ -1,0 +1,12 @@
+<!-- The ladybird.org download button: a vertical accent gradient in a pill. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="#33FFFFFF">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="270"
+                android:endColor="@color/cta_bottom"
+                android:startColor="@color/cta_top" />
+            <corners android:radius="999dp" />
+        </shape>
+    </item>
+</ripple>

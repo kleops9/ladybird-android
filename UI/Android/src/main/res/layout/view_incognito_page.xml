@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The incognito new tab page, on the ladybird.org brand band (indigo gradient, white type, ruled columns). -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_brand_band"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="28dp"
+        android:paddingTop="64dp"
+        android:paddingEnd="28dp"
+        android:paddingBottom="32dp">
+
+        <ImageView
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ladybird_mark_on_dark" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="@string/incognito_title"
+            android:textAppearance="@style/TextAppearance.Ladybird.Display"
+            android:textColor="@color/incognito_text" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:lineSpacingMultiplier="1.25"
+            android:text="@string/incognito_body"
+            android:textAppearance="@style/TextAppearance.Ladybird.Body"
+            android:textColor="@color/incognito_text_secondary"
+            android:textSize="16sp" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="36dp"
+            android:background="#40FFFFFF" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/incognito_kept_title"
+            android:textAppearance="@style/TextAppearance.Ladybird.Emphasis"
+            android:textColor="@color/incognito_text"
+            android:textSize="17sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/incognito_kept"
+            android:textAppearance="@style/TextAppearance.Ladybird.Body"
+            android:textColor="@color/incognito_text_secondary"
+            android:textSize="14sp" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="28dp"
+            android:background="#40FFFFFF" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/incognito_visible_title"
+            android:textAppearance="@style/TextAppearance.Ladybird.Emphasis"
+            android:textColor="@color/incognito_text"
+            android:textSize="17sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/incognito_visible"
+            android:textAppearance="@style/TextAppearance.Ladybird.Body"
+            android:textColor="@color/incognito_text_secondary"
+            android:textSize="14sp" />
+    </LinearLayout>
+</ScrollView>

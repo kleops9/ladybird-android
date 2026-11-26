@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="page_bg">#FF000000</color>
+    <color name="subtle_bg">#FF121214</color>
+    <color name="border">#FF2C2C30</color>
+    <color name="border_light">#FF1E1E22</color>
+    <color name="text_primary">#FFF4F4F5</color>
+    <color name="text_secondary">#FFA1A1AA</color>
+    <color name="text_strong">#FFD4D4D8</color>
+    <color name="accent">#FFB496FF</color>
+    <color name="accent_hover">#FFCAB5FF</color>
+    <color name="on_accent">#FF0A0A0A</color>
+    <color name="hero_glow">#388A64E5</color>
+    <color name="accent_tint">#24B496FF</color>
+    <color name="cta_top">#FFBEA5FF</color>
+    <color name="cta_bottom">#FF9679E0</color>
+</resources>

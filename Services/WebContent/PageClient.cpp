@@ -626,6 +626,16 @@ void PageClient::page_did_request_select_dropdown(Web::CSSPixelPoint content_pos
     client().async_did_request_select_dropdown(m_id, page().css_to_device_point(content_position).to_type<int>(), minimum_width * device_pixels_per_css_pixel(), items);
 }
 
+void PageClient::page_did_change_focused_editable(bool is_editable)
+{
+    client().async_did_change_focused_editable(m_id, is_editable);
+}
+
+void PageClient::page_did_request_download(URL::URL const& url, ByteString const& content_disposition, ByteString const& mime_type)
+{
+    client().async_did_request_download(m_id, url, content_disposition, mime_type);
+}
+
 void PageClient::page_did_change_theme_color(Gfx::Color color)
 {
     client().async_did_change_theme_color(m_id, color);

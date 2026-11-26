@@ -661,6 +661,22 @@ void WebContentClient::did_finish_handling_input_event(u64 page_id, Web::EventRe
         view->did_finish_handling_input_event({}, event_result);
 }
 
+void WebContentClient::did_change_focused_editable(u64 page_id, bool is_editable)
+{
+    if (auto view = view_for_page_id(page_id); view.has_value()) {
+        if (view->on_focused_editable_change)
+            view->on_focused_editable_change(is_editable);
+    }
+}
+
+void WebContentClient::did_request_download(u64 page_id, URL::URL url, ByteString content_disposition, ByteString mime_type)
+{
+    if (auto view = view_for_page_id(page_id); view.has_value()) {
+        if (view->on_request_download)
+            view->on_request_download(url, content_disposition, mime_type);
+    }
+}
+
 void WebContentClient::did_change_theme_color(u64 page_id, Gfx::Color color)
 {
     if (auto view = view_for_page_id(page_id); view.has_value()) {

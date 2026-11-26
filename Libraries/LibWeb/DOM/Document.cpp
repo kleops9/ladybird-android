@@ -2521,6 +2521,20 @@ void Document::set_focused_element(GC::Ptr<Element> element)
     if (m_focused_element)
         m_focused_element->did_receive_focus();
 
+    // Let the UI know whether text input is now expected (e.g. to show an on-screen keyboard).
+    if (navigable() && is_fully_active()) {
+        bool is_editable = false;
+        if (m_focused_element) {
+            if (auto* input = as_if<HTML::HTMLInputElement>(*m_focused_element))
+                is_editable = input->can_have_text_editing_cursor() && input->is_mutable();
+            else if (is<HTML::HTMLTextAreaElement>(*m_focused_element))
+                is_editable = true;
+            else
+                is_editable = m_focused_element->is_editable_or_editing_host();
+        }
+        page().client().page_did_change_focused_editable(is_editable);
+    }
+
     if (paintable())
         paintable()->set_needs_display();
 

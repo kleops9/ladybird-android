@@ -169,6 +169,8 @@ private:
     virtual void page_did_set_test_timeout(double milliseconds) override;
     virtual void page_did_set_browser_zoom(double factor) override;
     virtual void page_did_change_theme_color(Gfx::Color color) override;
+    virtual void page_did_change_focused_editable(bool is_editable) override;
+    virtual void page_did_request_download(URL::URL const&, ByteString const& content_disposition, ByteString const& mime_type) override;
     virtual void page_did_insert_clipboard_entry(Web::Clipboard::SystemClipboardRepresentation const&, StringView presentation_style) override;
     virtual void page_did_request_clipboard_entries(u64 request_id) override;
     virtual void page_did_change_audio_play_state(Web::HTML::AudioPlayState) override;

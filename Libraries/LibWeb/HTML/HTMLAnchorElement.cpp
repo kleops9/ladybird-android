@@ -13,6 +13,7 @@
 #include <LibWeb/HTML/HTMLAnchorElement.h>
 #include <LibWeb/HTML/HTMLImageElement.h>
 #include <LibWeb/HTML/Window.h>
+#include <LibWeb/Page/Page.h>
 #include <LibWeb/PixelUnits.h>
 #include <LibWeb/ReferrerPolicy/ReferrerPolicy.h>
 #include <LibWeb/UIEvents/MouseEvent.h>
@@ -125,9 +126,21 @@ void HTMLAnchorElement::activation_behavior(Web::DOM::Event const& event)
     if (has_download_preference())
         user_involvement = UserNavigationInvolvement::BrowserUI;
 
-    // FIXME: 6. If element has a download attribute, or if the user has expressed a preference to download the
-    //     hyperlink, then download the hyperlink created by element with hyperlinkSuffix set to hyperlinkSuffix and
-    //     userInvolvement set to userInvolvement.
+    // 6. If element has a download attribute, or if the user has expressed a preference to download the
+    //    hyperlink, then download the hyperlink created by element with hyperlinkSuffix set to hyperlinkSuffix and
+    //    userInvolvement set to userInvolvement.
+    // AD-HOC: Instead of fetching it here, hand the URL and the suggested filename to the browser UI, which does the
+    //         download. It can only fetch URLs from the network (and decode data: URLs), so blob: URLs still navigate.
+    if (has_download_preference()) {
+        if (auto url = document().encoding_parse_url(href()); url.has_value() && url->scheme().is_one_of("http"sv, "https"sv, "data"sv)) {
+            auto filename = get_attribute_value(HTML::AttributeNames::download);
+            auto content_disposition = filename.is_empty()
+                ? ByteString { "attachment"sv }
+                : ByteString::formatted("attachment; filename=\"{}\"", filename.bytes_as_string_view().replace("\""sv, "'"sv, ReplaceMode::All));
+            document().page().client().page_did_request_download(*url, content_disposition, {});
+            return;
+        }
+    }
 
     // 7. Otherwise, follow the hyperlink created by element with hyperlinkSuffix set to hyperlinkSuffix and userInvolvement set to userInvolvement.
     follow_the_hyperlink(hyperlink_suffix, user_involvement);

@@ -1397,9 +1397,19 @@ WebIDL::ExceptionOr<void> Navigable::populate_session_history_entry_document(
             }
         }
 
-        // FIXME: 5. Otherwise, if navigationParams's response has a `Content-Disposition` header specifying the attachment
+        // 5. Otherwise, if navigationParams's response has a `Content-Disposition` header specifying the attachment
         //    disposition type, then:
-        else if (false) {
+        else if (auto content_disposition = attachment_content_disposition(navigation_params); content_disposition.has_value()) {
+            // FIXME: 1. Let sourceAllowsDownloading be sourceSnapshotParams's sandboxing flags's sandboxed downloads browsing context flag is set ? false : true.
+            // FIXME: 2. Let targetAllowsDownloading be false if navigationParams's final sandboxing flag set has the sandboxed downloads browsing context flag set; otherwise true.
+            // FIXME: 3. Let uaAllowsDownloading be true.
+            // FIXME: 4. Optionally, the user agent may set uaAllowsDownloading to false, if it believes doing so would safeguard the user from a potentially hostile download.
+            // 5. If sourceAllowsDownloading, targetAllowsDownloading, and uaAllowsDownloading are true, then:
+            //    1. Handle as a download navigationParams's response with navigable and navigationId.
+            // AD-HOC: The browser UI does the download; hand it the URL and the response's headers.
+            hand_off_download(navigation_params.get<GC::Ref<NavigationParams>>(), content_disposition.release_value());
+
+            // FIXME: 2. Invoke WebDriver BiDi navigation failed with navigable and a new WebDriver BiDi navigation status whose id is navigationId, status is "canceled", and url is navigationParams's response's URL.
         }
 
         // 6. Otherwise, if navigationParams's response's status is not 204 and is not 205, then set entry's document state's document to the result of
@@ -1407,6 +1417,11 @@ WebIDL::ExceptionOr<void> Navigable::populate_session_history_entry_document(
         else if (auto const& response = navigation_params.get<GC::Ref<NavigationParams>>()->response; response->status() != 204 && response->status() != 205) {
             auto document = load_document(navigation_params.get<GC::Ref<NavigationParams>>());
             entry->document_state()->set_document(document);
+
+            // AD-HOC: load_document() returns null for types we can't display (PDFs, archives, ...). The spec says to hand
+            //         those off to external software, which for us is the browser UI's download manager.
+            if (!document)
+                hand_off_download(navigation_params.get<GC::Ref<NavigationParams>>(), {});
         }
 
         // 7. If entry's document state's document is not null, then:
@@ -1449,6 +1464,50 @@ WebIDL::ExceptionOr<void> Navigable::populate_session_history_entry_document(
     }));
 
     return {};
+}
+
+// AD-HOC: Returns the response's Content-Disposition header if it specifies the attachment disposition type.
+Optional<ByteString> Navigable::attachment_content_disposition(NavigationParamsVariant const& navigation_params)
+{
+    if (!navigation_params.has<GC::Ref<NavigationParams>>())
+        return {};
+    auto const& response = navigation_params.get<GC::Ref<NavigationParams>>()->response;
+    if (!response)
+        return {};
+    auto header = response->header_list()->get("Content-Disposition"sv.bytes());
+    if (!header.has_value())
+        return {};
+    auto value = StringView { header->bytes() }.trim_whitespace();
+    if (!value.starts_with("attachment"sv, CaseSensitivity::CaseInsensitive))
+        return {};
+    // The disposition type is a token: "attachment" must be followed by the end of the value or a parameter.
+    auto rest = value.substring_view("attachment"sv.length()).trim_whitespace(TrimMode::Left);
+    if (!rest.is_empty() && !rest.starts_with(';'))
+        return {};
+    return ByteString { value };
+}
+
+// AD-HOC: Hands a response we won't display to the browser UI, which downloads it.
+void Navigable::hand_off_download(GC::Ref<NavigationParams> navigation_params, ByteString content_disposition)
+{
+    auto const& response = navigation_params->response;
+    if (!response)
+        return;
+    if (content_disposition.is_empty()) {
+        if (auto header = response->header_list()->get("Content-Disposition"sv.bytes()); header.has_value())
+            content_disposition = ByteString { StringView { header->bytes() } };
+    }
+    ByteString mime_type;
+    if (auto type = response->header_list()->extract_mime_type(); type.has_value())
+        mime_type = type->essence().to_byte_string();
+
+    Optional<URL::URL> url;
+    if (response->url().has_value())
+        url = *response->url();
+    else if (navigation_params->request)
+        url = navigation_params->request->current_url();
+    if (url.has_value())
+        page().client().page_did_request_download(*url, content_disposition, mime_type);
 }
 
 WebIDL::ExceptionOr<void> Navigable::navigate(NavigateParams params)

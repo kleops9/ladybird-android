@@ -233,6 +233,9 @@ protected:
     Variant<Empty, Traversal, String> m_ongoing_navigation;
 
 private:
+    static Optional<ByteString> attachment_content_disposition(NavigationParamsVariant const&);
+    void hand_off_download(GC::Ref<NavigationParams>, ByteString content_disposition);
+
     void begin_navigation(NavigateParams);
     void navigate_to_a_fragment(URL::URL const&, HistoryHandlingBehavior, UserNavigationInvolvement, GC::Ptr<DOM::Element> source_element, Optional<SerializationRecord> navigation_api_state, String navigation_id);
     void navigate_to_a_javascript_url(URL::URL const&, HistoryHandlingBehavior, GC::Ref<SourceSnapshotParams>, URL::Origin const& initiator_origin, UserNavigationInvolvement, ContentSecurityPolicy::Directives::Directive::NavigationType csp_navigation_type, InitialInsertion, String navigation_id);

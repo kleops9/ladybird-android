@@ -227,6 +227,8 @@ public:
     Function<void(double factor)> on_set_browser_zoom;
     Function<void(size_t current_match_index, Optional<size_t> const& total_match_count)> on_find_in_page;
     Function<void(Gfx::Color)> on_theme_color_change;
+    Function<void(bool is_editable)> on_focused_editable_change;
+    Function<void(URL::URL const&, ByteString const& content_disposition, ByteString const& mime_type)> on_request_download;
     Function<void(Web::Clipboard::SystemClipboardRepresentation, String const&)> on_insert_clipboard_entry;
     Function<void(u64 request_id)> on_request_clipboard_entries;
     Function<void(Web::HTML::AudioPlayState)> on_audio_play_state_changed;

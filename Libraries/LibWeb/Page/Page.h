@@ -394,6 +394,10 @@ public:
 
     virtual void page_did_change_theme_color(Gfx::Color) { }
 
+    virtual void page_did_change_focused_editable([[maybe_unused]] bool is_editable) { }
+    // AD-HOC: Hands a resource the page can't display (or that asks to be saved) to the browser UI to download.
+    virtual void page_did_request_download([[maybe_unused]] URL::URL const& url, [[maybe_unused]] ByteString const& content_disposition, [[maybe_unused]] ByteString const& mime_type) { }
+
     virtual void page_did_insert_clipboard_entry(Clipboard::SystemClipboardRepresentation const&, [[maybe_unused]] StringView presentation_style) { }
     virtual void page_did_request_clipboard_entries([[maybe_unused]] u64 request_id) { }
 

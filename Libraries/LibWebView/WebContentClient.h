@@ -24,6 +24,7 @@
 
 namespace WebView {
 
+class StorageJar;
 class ViewImplementation;
 
 class WebContentClient final
@@ -54,6 +55,10 @@ public:
     Function<void()> on_web_content_process_crash;
 
     pid_t pid() const { return m_process_handle.pid; }
+
+    // A private browsing (incognito) process keeps its cookies and web storage in memory, apart from everyone else's.
+    bool is_private_browsing() const { return m_private_browsing; }
+    void set_private_browsing(bool private_browsing) { m_private_browsing = private_browsing; }
     void set_pid(pid_t pid) { m_process_handle.pid = pid; }
 
 private:
@@ -143,6 +148,10 @@ private:
 
     // FIXME: Does a HashMap holding references make sense?
     HashMap<u64, ViewImplementation*> m_views;
+
+    CookieJar& cookie_jar() const;
+    StorageJar& storage_jar() const;
+    bool m_private_browsing { false };
 
     ProcessHandle m_process_handle;
 

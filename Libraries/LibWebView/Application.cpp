@@ -345,6 +345,8 @@ ErrorOr<void> Application::launch_services()
         m_cookie_jar = CookieJar::create();
         m_storage_jar = StorageJar::create();
     }
+    m_private_cookie_jar = CookieJar::create();
+    m_private_storage_jar = StorageJar::create();
 
     // No need to monitor the system time zone if the TZ environment variable is set, as it overrides system preferences.
     if (!Core::Environment::has("TZ"sv)) {
@@ -551,6 +553,12 @@ void Application::process_did_exit(Process&& process)
         dbgln("Invalid process type to be dying: Browser");
         VERIFY_NOT_REACHED();
     }
+}
+
+void Application::clear_private_browsing_data()
+{
+    the().m_private_cookie_jar = CookieJar::create();
+    the().m_private_storage_jar = StorageJar::create();
 }
 
 ErrorOr<LexicalPath> Application::path_for_downloaded_file(StringView file) const

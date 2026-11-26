@@ -49,6 +49,12 @@ public:
     static CookieJar& cookie_jar() { return *the().m_cookie_jar; }
     static StorageJar& storage_jar() { return *the().m_storage_jar; }
 
+    // In-memory jars for private browsing (incognito) web content processes; they are never written to disk.
+    static CookieJar& private_cookie_jar() { return *the().m_private_cookie_jar; }
+    static StorageJar& private_storage_jar() { return *the().m_private_storage_jar; }
+    // Forgets everything private browsing stored. Call once no private browsing process is left.
+    static void clear_private_browsing_data();
+
     static ProcessManager& process_manager() { return *the().m_process_manager; }
 
     ErrorOr<NonnullRefPtr<WebContentClient>> launch_web_content_process(ViewImplementation&);
@@ -141,6 +147,8 @@ private:
     RefPtr<Database> m_database;
     OwnPtr<CookieJar> m_cookie_jar;
     OwnPtr<StorageJar> m_storage_jar;
+    OwnPtr<CookieJar> m_private_cookie_jar;
+    OwnPtr<StorageJar> m_private_storage_jar;
 
     OwnPtr<Core::TimeZoneWatcher> m_time_zone_watcher;
 

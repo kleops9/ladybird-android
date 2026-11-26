@@ -14,7 +14,36 @@ if (NOT RUSTC_WRAPPER)
     endif()
 endif()
 
-if (NOT DEFINED CACHE{RUST_TARGET_TRIPLE})
+if (ANDROID)
+    # Android is always cross-compiled, so the crates are built for the ABI the NDK targets rather than for the host.
+    if (ANDROID_ABI STREQUAL "arm64-v8a")
+        set(android_rust_triple "aarch64-linux-android")
+    elseif (ANDROID_ABI STREQUAL "x86_64")
+        set(android_rust_triple "x86_64-linux-android")
+    elseif (ANDROID_ABI STREQUAL "armeabi-v7a")
+        set(android_rust_triple "armv7-linux-androideabi")
+    elseif (ANDROID_ABI STREQUAL "x86")
+        set(android_rust_triple "i686-linux-android")
+    else()
+        message(FATAL_ERROR "No Rust target triple is known for the Android ABI '${ANDROID_ABI}'")
+    endif()
+    set(RUST_TARGET_TRIPLE "${android_rust_triple}" CACHE INTERNAL "Rust target triple")
+
+    # The NDK's clang only targets Android when it is given --target, which CMake keeps in its flags rather than in
+    # CMAKE_C_COMPILER. Cargo and the cc crate use the compiler as a plain program, so give them the NDK's wrappers
+    # that carry the target and API level themselves.
+    if (ANDROID_PLATFORM_LEVEL)
+        set(android_api_level "${ANDROID_PLATFORM_LEVEL}")
+    else()
+        set(android_api_level "${CMAKE_SYSTEM_VERSION}")
+    endif()
+    string(REPLACE "armv7-linux-androideabi" "armv7a-linux-androideabi" android_clang_prefix "${android_rust_triple}")
+    set(RUST_ANDROID_C_COMPILER "${ANDROID_TOOLCHAIN_ROOT}/bin/${android_clang_prefix}${android_api_level}-clang")
+    set(RUST_ANDROID_CXX_COMPILER "${ANDROID_TOOLCHAIN_ROOT}/bin/${android_clang_prefix}${android_api_level}-clang++")
+    if (NOT EXISTS "${RUST_ANDROID_C_COMPILER}")
+        message(FATAL_ERROR "The NDK has no compiler wrapper at ${RUST_ANDROID_C_COMPILER}")
+    endif()
+elseif (NOT DEFINED CACHE{RUST_TARGET_TRIPLE})
     execute_process(COMMAND "${RUST_RUSTC}" -vV OUTPUT_VARIABLE rustc_verbose)
     string(REGEX MATCH "host: ([^\n]+)" _ "${rustc_verbose}")
     string(STRIP "${CMAKE_MATCH_1}" host_triple)
@@ -385,9 +414,16 @@ function(_rust_crate_common_setup)
     set(cargo_output_dir "${cargo_target_dir}/${RUST_TARGET_TRIPLE}/${cargo_profile_dir}")
 
     # Build environment variables for cargo.
+    if (ANDROID)
+        set(cargo_c_compiler "${RUST_ANDROID_C_COMPILER}")
+        set(cargo_cxx_compiler "${RUST_ANDROID_CXX_COMPILER}")
+    else()
+        set(cargo_c_compiler "${CMAKE_C_COMPILER}")
+        set(cargo_cxx_compiler "${CMAKE_CXX_COMPILER}")
+    endif()
     set(cargo_env
-        "CC_${target_underscore}=${CMAKE_C_COMPILER}"
-        "CXX_${target_underscore}=${CMAKE_CXX_COMPILER}"
+        "CC_${target_underscore}=${cargo_c_compiler}"
+        "CXX_${target_underscore}=${cargo_cxx_compiler}"
         "CARGO_BUILD_RUSTC=${RUST_RUSTC}"
     )
 
@@ -425,7 +461,7 @@ function(_rust_crate_common_setup)
     # compiler driver like clang-cl.
     if (NOT WIN32)
         list(APPEND cargo_env
-            "CARGO_TARGET_${target_upper}_LINKER=${CMAKE_C_COMPILER}"
+            "CARGO_TARGET_${target_upper}_LINKER=${cargo_c_compiler}"
             "AR_${target_underscore}=${CMAKE_AR}"
         )
     endif()

@@ -27,6 +27,15 @@ if(RUNTIME_OPTIONS STREQUAL "")
     message(FATAL_ERROR "At least one of libidn2 and libicu should be selected.")
 endif()
 
+# libpsl compiles and runs a small program on the build machine to stamp its copyright date. A cross build (such as
+# Android) otherwise gets vcpkg's native file, which leaves the build machine without a C compiler.
+if(VCPKG_CROSSCOMPILING)
+    find_program(BUILD_MACHINE_CC NAMES cc gcc clang REQUIRED)
+    find_program(BUILD_MACHINE_AR NAMES ar llvm-ar REQUIRED)
+    set(VCPKG_MESON_NATIVE_FILE "${CURRENT_BUILDTREES_DIR}/meson-native-${TARGET_TRIPLET}.txt")
+    file(WRITE "${VCPKG_MESON_NATIVE_FILE}" "[binaries]\nc = ['${BUILD_MACHINE_CC}']\nar = ['${BUILD_MACHINE_AR}']\n")
+endif()
+
 vcpkg_configure_meson(
     SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS

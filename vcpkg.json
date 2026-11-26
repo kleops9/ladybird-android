@@ -234,6 +234,9 @@
       "platform": "android",
       "default-features": false,
       "features": [
+        "freetype",
+        "harfbuzz",
+        "icu",
         "vulkan"
       ]
     },

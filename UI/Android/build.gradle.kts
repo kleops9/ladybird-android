@@ -3,6 +3,10 @@ plugins {
     id("org.jetbrains.kotlin.android") version "2.1.20"
 }
 
+// With -PladybirdNativeBuildDir=<CMake build directory>, Gradle packages a native build made beforehand (with
+// UI/Android/build-native.sh) instead of running CMake itself, which saves building everything a second time.
+val prebuiltNativeBuildDir = providers.gradleProperty("ladybirdNativeBuildDir").orNull
+
 android {
     namespace = "org.serenityos.ladybird"
     compileSdk = 35
@@ -17,14 +21,18 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        externalNativeBuild {
-            cmake {
-                cppFlags += "-std=c++23"
-                arguments += listOf(
-                    "-DANDROID_STL=c++_shared",
-                    "-DLADYBIRD_VCPKG_TYPE=release",
-                    "-DVCPKG_TARGET_ANDROID=ON"
-                )
+        if (prebuiltNativeBuildDir == null) {
+            externalNativeBuild {
+                cmake {
+                    cppFlags += "-std=c++23"
+                    arguments += listOf(
+                        "-DANDROID_STL=c++_shared",
+                        "-DLADYBIRD_VCPKG_TYPE=release",
+                        "-DVCPKG_TARGET_ANDROID=ON",
+                        "-DBUILD_SHARED_LIBS=ON",
+                        "-DCMAKE_SKIP_INSTALL_RULES=ON"
+                    )
+                }
             }
         }
         ndk {
@@ -36,7 +44,7 @@ android {
 
     buildTypes {
         debug {
-            externalNativeBuild {
+            if (prebuiltNativeBuildDir == null) externalNativeBuild {
                 cmake {
                     // A CMake Debug build compiles with -ggdb3, which makes each LibWeb object ~12 MB and every
                     // binary that links LibWeb several GB. Line tables (-g1) still give symbolized backtraces.
@@ -62,10 +70,28 @@ android {
     kotlinOptions {
         jvmTarget = "11"
     }
-    externalNativeBuild {
-        cmake {
-            path = file("../../CMakeLists.txt")
-            version = "3.23.0+"
+    if (prebuiltNativeBuildDir == null) {
+        externalNativeBuild {
+            cmake {
+                path = file("../../CMakeLists.txt")
+                version = "3.23.0+"
+            }
+        }
+    }
+
+    // The helper processes are executables, which Android only lets an app run from its native library directory.
+    // CMake builds them as lib<Name>.so into build/helpers, and they're installed (extracted) like any library.
+    // A prebuilt native build's libraries are gathered into build/prebuilt-jni by build-native.sh.
+    sourceSets {
+        getByName("main") {
+            jniLibs.srcDir("build/helpers")
+            if (prebuiltNativeBuildDir != null)
+                jniLibs.srcDir("build/prebuilt-jni")
+        }
+    }
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
         }
     }
 

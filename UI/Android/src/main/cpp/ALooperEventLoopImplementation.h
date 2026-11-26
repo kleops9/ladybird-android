@@ -49,6 +49,8 @@ private:
 
 struct TimerData {
     WeakPtr<Core::EventReceiver> receiver;
+    // A timer event is only for the timer that was running when it was registered.
+    u64 generation { 0 };
 };
 
 struct EventLoopThreadData {

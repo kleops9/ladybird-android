@@ -25,7 +25,6 @@ interface TabHost {
     fun onTabCrashed(tab: Tab)
     fun onTabDownload(tab: Tab, url: String, contentDisposition: String, mimeType: String)
     fun onTabFindResult(tab: Tab, currentIndex: Int, totalMatches: Int)
-    fun prepareWebContentSlot(forTab: Tab)
     fun configureNewView(tab: Tab, view: WebView)
 }
 
@@ -65,17 +64,15 @@ class Tab(
     val isNewTabPage get() = url == NEW_TAB_URL && view == null
     val displayTitle get() = title.ifBlank { if (url == NEW_TAB_URL) "New tab" else url }
 
-    /** Creates the WebView (and WebContent process) on demand. With a parent, attaches to an already created page. */
-    fun ensureView(context: Context, parent: Tab? = null, pageIndex: Long = -1): WebView {
+    /**
+     * Creates the WebView (and its view in the Hub) on demand. With a view ID, shows a view the Hub already made for a
+     * page this tab's opener opened.
+     */
+    fun ensureView(context: Context, existingViewId: Long = -1): WebView {
         view?.let { return it }
-        if (parent?.view == null)
-            host.prepareWebContentSlot(this)
         val newView = WebView(context)
         newView.client = this
-        newView.initialize(parent?.view, pageIndex)
-        // A child view shares its opener's process, which is already private or not.
-        if (isIncognito && parent?.view == null)
-            newView.impl.setPrivateBrowsing(true)
+        newView.initialize(isIncognito, existingViewId)
         newView.isIncognito = isIncognito
         view = newView
         isCrashed = false
@@ -208,28 +205,6 @@ class Tab(
 
     override fun onRequestSelectDropdown(labels: Array<String>, ids: IntArray, enabled: BooleanArray, selectedIndex: Int) =
         host.onTabSelectDropdown(this, labels, ids, enabled, selectedIndex)
-
-    override fun onResourceStatusChange(countWaiting: Int) {
-        // Ladybird reports how many resources are still loading; turn that into a rough progress fraction.
-        if (!isLoading)
-            return
-        pendingResources = countWaiting
-        peakResources = maxOf(peakResources, countWaiting)
-        val fraction = if (peakResources == 0) 0.5f else 1f - pendingResources.toFloat() / peakResources
-        loadProgress = maxOf(loadProgress, 0.15f + 0.8f * fraction)
-        host.onTabStateChanged(this)
-    }
-
-    override fun onRequestDownload(url: String, contentDisposition: String, mimeType: String) {
-        // The navigation became a download: the page on screen stays, so go back to showing its address.
-        if (isLoading) {
-            isLoading = false
-            loadProgress = 1f
-            committedUrl?.let { this.url = it }
-        }
-        host.onTabStateChanged(this)
-        host.onTabDownload(this, url, contentDisposition, mimeType)
-    }
 
     override fun onFindInPageResult(currentIndex: Int, totalMatches: Int) = host.onTabFindResult(this, currentIndex, totalMatches)
 

@@ -168,8 +168,12 @@ else()
 endif()
 
 set(LADYBIRD_LIBS AK LibCore LibGfx LibIPC LibMain LibThreading LibWebView LibURL LibWakeLock LibGamepad hubipc)
+# NB: SDL's gamepad support on Android needs SDL's own Java classes, and loading it looks for them.
+if (ANDROID)
+    list(REMOVE_ITEM LADYBIRD_LIBS LibGamepad)
+endif()
 # NB: Where the Hub is a process of its own, the UI must not be able to reach into it.
-if (LINUX OR APPLE)
+if (LINUX OR APPLE OR ANDROID)
     target_compile_definitions(${LADYBIRD_TARGET} LADYBIRD_HUB_IN_OWN_PROCESS)
 else()
     list(APPEND LADYBIRD_LIBS hubservice)
@@ -187,7 +191,9 @@ endif()
 
 function(set_helper_process_properties)
     set(targets ${ARGV})
-    if (APPLE OR WIN32)
+    if (ANDROID)
+        set_android_helper_process_properties(${targets})
+    elseif (APPLE OR WIN32)
         # Store helper processes in the same bundle directory as the main application
         set_target_properties(${targets} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "$<TARGET_FILE_DIR:ladybird>")
     else()

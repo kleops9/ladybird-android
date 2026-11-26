@@ -17,18 +17,16 @@ import android.graphics.Bitmap
 class WebViewImplementation(private val view: WebView) {
     // Instance Pointer to native object, very unsafe :)
     private var nativeInstance: Long = 0
-    private var slot: WebContentSlots.Slot? = null
 
     val isInitialized get() = nativeInstance != 0L
     val instance get() = nativeInstance
 
-    /** Creates the native view. With a parent and page index, attaches to a page the parent's WebContent already created. */
-    fun initialize(parent: WebViewImplementation? = null, pageIndex: Long = -1) {
-        nativeInstance = nativeObjectInit(parent?.nativeInstance ?: 0, pageIndex)
-        if (parent != null) {
-            slot = parent.slot
-            slot?.retain()
-        }
+    /**
+     * Creates the view in the Hub. With a view ID, shows a view that the Hub already made, such as one a page opened
+     * with window.open().
+     */
+    fun initialize(isPrivate: Boolean, existingViewId: Long = -1) {
+        nativeInstance = nativeObjectInit(isPrivate, existingViewId, view.resources.displayMetrics.density)
     }
 
     fun dispose() {
@@ -36,22 +34,23 @@ class WebViewImplementation(private val view: WebView) {
             return
         nativeObjectDispose(nativeInstance)
         nativeInstance = 0
-        slot?.release()
-        slot = null
     }
 
-    val handle: String get() = nativeGetHandle(nativeInstance)
+    /** What a page names this tab by when it opens a view in it. */
+    val handle: String get() = nativeViewId(nativeInstance).toString()
 
     fun loadURL(url: String) = nativeLoadURL(nativeInstance, url)
     fun reload() = nativeReload(nativeInstance)
+    fun stopLoading() = nativeStopLoading(nativeInstance)
     fun traverseHistory(delta: Int) = nativeTraverseHistory(nativeInstance, delta)
     fun zoom(direction: Int): Float = nativeZoom(nativeInstance, direction)
-    fun setZoom(level: Float): Float = nativeSetZoom(nativeInstance, level)
+    fun pinch(focusX: Float, focusY: Float, scaleDelta: Float, continuesGesture: Boolean) =
+        nativePinch(nativeInstance, focusX, focusY, scaleDelta, continuesGesture)
     fun findInPage(query: String) = nativeFindInPage(nativeInstance, query)
     fun findInPageNext() = nativeFindInPageNext(nativeInstance)
     fun findInPagePrevious() = nativeFindInPagePrevious(nativeInstance)
-    fun setPrivateBrowsing(private: Boolean) = nativeSetPrivateBrowsing(nativeInstance, private)
-    fun cookiesForURL(url: String): String? = nativeCookiesForURL(nativeInstance, url)
+    fun findInPageEnd() = nativeFindInPageEnd(nativeInstance)
+    fun commitText(text: String) = nativeCommitText(nativeInstance, text)
     fun drawIntoBitmap(bitmap: Bitmap) = nativeDrawIntoBitmap(nativeInstance, bitmap)
     fun setSurface(surface: android.view.Surface?) = nativeSetSurface(nativeInstance, surface)
     fun setPresentationPaused(paused: Boolean) = nativeSetPresentationPaused(nativeInstance, paused)
@@ -59,8 +58,6 @@ class WebViewImplementation(private val view: WebView) {
     fun setDevicePixelRatio(ratio: Float) = nativeSetDevicePixelRatio(nativeInstance, ratio)
     fun setHasFocus(focus: Boolean) = nativeSetHasFocus(nativeInstance, focus)
     fun setVisible(visible: Boolean) = nativeSetVisible(nativeInstance, visible)
-    fun setPreferredColorScheme(scheme: Int) = nativeSetPreferredColorScheme(nativeInstance, scheme)
-    fun setMobileUserAgent(mobile: Boolean) = nativeSetMobileUserAgent(nativeInstance, mobile)
 
     fun mouseEvent(type: Int, x: Float, y: Float, rawX: Float, rawY: Float, button: Int, wheelX: Int = 0, wheelY: Int = 0) =
         nativeMouseEvent(nativeInstance, type, x, y, rawX, rawY, button, wheelX, wheelY)
@@ -75,13 +72,6 @@ class WebViewImplementation(private val view: WebView) {
 
     // Functions called from native code. These need block bodies: an expression body returning `Unit?`
     // compiles to a method returning Object, which doesn't match the "...V" signatures JNI looks up.
-    fun bindWebContentService(ipcFd: Int) {
-        val newSlot = WebContentSlots.acquire(view.context, ipcFd) {
-            view.client?.onWebContentCrashed()
-        }
-        slot = newSlot
-    }
-
     fun invalidateLayout() {
         view.onFrameReady()
     }
@@ -154,16 +144,8 @@ class WebViewImplementation(private val view: WebView) {
         view.client?.onRequestSelectDropdown(labels, ids, enabled, selectedIndex) ?: selectDropdownClosed(-1)
     }
 
-    fun onResourceStatusChange(countWaiting: Int) {
-        view.client?.onResourceStatusChange(countWaiting)
-    }
-
     fun onWebContentCrashed() {
         view.client?.onWebContentCrashed()
-    }
-
-    fun onRequestDownload(url: String, contentDisposition: String, mimeType: String) {
-        view.client?.onRequestDownload(url, contentDisposition, mimeType)
     }
 
     fun onFindInPageResult(currentIndex: Int, totalMatches: Int) {
@@ -171,9 +153,9 @@ class WebViewImplementation(private val view: WebView) {
     }
 
     // Functions implemented in native code
-    private external fun nativeObjectInit(parentInstance: Long, pageIndex: Long): Long
+    private external fun nativeObjectInit(isPrivate: Boolean, existingViewId: Long, devicePixelRatio: Float): Long
     private external fun nativeObjectDispose(instance: Long)
-    private external fun nativeGetHandle(instance: Long): String
+    private external fun nativeViewId(instance: Long): Long
 
     private external fun nativeDrawIntoBitmap(instance: Long, bitmap: Bitmap)
     private external fun nativeSetSurface(instance: Long, surface: android.view.Surface?)
@@ -184,6 +166,7 @@ class WebViewImplementation(private val view: WebView) {
     private external fun nativeSetVisible(instance: Long, visible: Boolean)
     private external fun nativeLoadURL(instance: Long, url: String)
     private external fun nativeReload(instance: Long)
+    private external fun nativeStopLoading(instance: Long)
     private external fun nativeTraverseHistory(instance: Long, delta: Int)
     private external fun nativeZoom(instance: Long, direction: Int): Float
     private external fun nativeMouseEvent(instance: Long, type: Int, x: Float, y: Float, rawX: Float, rawY: Float, button: Int, wheelX: Int, wheelY: Int)
@@ -192,20 +175,19 @@ class WebViewImplementation(private val view: WebView) {
     private external fun nativeConfirmClosed(instance: Long, accepted: Boolean)
     private external fun nativePromptClosed(instance: Long, response: String?)
     private external fun nativeSelectDropdownClosed(instance: Long, id: Int)
-    private external fun nativeSetPreferredColorScheme(instance: Long, scheme: Int)
-    private external fun nativeSetMobileUserAgent(instance: Long, mobile: Boolean)
-    private external fun nativeSetZoom(instance: Long, level: Float): Float
+    private external fun nativePinch(instance: Long, focusX: Float, focusY: Float, scaleDelta: Float, continuesGesture: Boolean)
     private external fun nativeFindInPage(instance: Long, query: String)
     private external fun nativeFindInPageNext(instance: Long)
     private external fun nativeFindInPagePrevious(instance: Long)
-    private external fun nativeSetPrivateBrowsing(instance: Long, private: Boolean)
-    private external fun nativeCookiesForURL(instance: Long, url: String): String?
+    private external fun nativeFindInPageEnd(instance: Long)
+    private external fun nativeCommitText(instance: Long, text: String)
 
     companion object {
         const val MOUSE_DOWN = 0
         const val MOUSE_UP = 1
         const val MOUSE_MOVE = 2
         const val MOUSE_WHEEL = 3
+        const val MOUSE_DOUBLE_CLICK = 4
 
         const val BUTTON_NONE = 0
         const val BUTTON_PRIMARY = 1
@@ -223,6 +205,8 @@ class WebViewImplementation(private val view: WebView) {
         fun sanitizeURL(text: String, searchEngine: String): String? = nativeSanitizeURL(text, searchEngine)
         fun searchEngineNames(): Array<String> = nativeSearchEngineNames()
         fun userAgent(mobile: Boolean): String = nativeUserAgent(mobile)
+        /** The user agent belongs to the browser, so this changes it for every tab. */
+        fun setMobileUserAgent(mobile: Boolean) = nativeSetMobileUserAgent(mobile)
         /** Forgets incognito cookies and site storage; call when the last incognito tab has closed. */
         fun clearPrivateBrowsingData() = nativeClearPrivateBrowsingData()
 
@@ -235,6 +219,7 @@ class WebViewImplementation(private val view: WebView) {
         private external fun nativeSanitizeURL(text: String, searchEngine: String): String?
         private external fun nativeSearchEngineNames(): Array<String>
         private external fun nativeUserAgent(mobile: Boolean): String
+        private external fun nativeSetMobileUserAgent(mobile: Boolean)
         private external fun nativeClearPrivateBrowsingData()
 
         init {

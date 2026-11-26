@@ -20,6 +20,7 @@
         android:allowNativeHeapPointerTagging="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:enableOnBackInvokedCallback="true"
+        android:extractNativeLibs="true"
         android:fullBackupContent="@xml/backup_rules"
         android:fullBackupOnly="false"
         android:hardwareAccelerated="true"
@@ -57,47 +58,6 @@
                 android:name="android.app.extract_android_style"
                 android:value="minimal" />
         </activity>
-        <!-- One process per live tab; see WebContentSlots.kt. -->
-        <service
-            android:name=".WebContentService0"
-            android:enabled="true"
-            android:exported="false"
-            android:process=":WebContent0" />
-        <service
-            android:name=".WebContentService1"
-            android:enabled="true"
-            android:exported="false"
-            android:process=":WebContent1" />
-        <service
-            android:name=".WebContentService2"
-            android:enabled="true"
-            android:exported="false"
-            android:process=":WebContent2" />
-        <service
-            android:name=".WebContentService3"
-            android:enabled="true"
-            android:exported="false"
-            android:process=":WebContent3" />
-        <service
-            android:name=".WebContentService4"
-            android:enabled="true"
-            android:exported="false"
-            android:process=":WebContent4" />
-        <service
-            android:name=".WebContentService5"
-            android:enabled="true"
-            android:exported="false"
-            android:process=":WebContent5" />
-        <service
-            android:name=".RequestServerService"
-            android:enabled="true"
-            android:exported="false"
-            android:process=":RequestServer" />
-        <service
-            android:name=".ImageDecoderService"
-            android:enabled="true"
-            android:exported="false"
-            android:process=":ImageDecoder" />
     </application>
 
 </manifest>

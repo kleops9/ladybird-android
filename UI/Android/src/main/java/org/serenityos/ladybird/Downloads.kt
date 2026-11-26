@@ -143,6 +143,27 @@ class Downloads(private val context: Context) {
         save()
     }
 
+    /** Moves a file that the Hub downloaded into the public Downloads folder and records it. */
+    fun importFile(source: File, url: String): Entry {
+        val name = sanitize(source.name)
+        val type = MimeTypeMap.getSingleton().getMimeTypeFromExtension(source.extension.lowercase()) ?: ""
+        val values = ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, name)
+            if (type.isNotEmpty())
+                put(MediaStore.Downloads.MIME_TYPE, type)
+            put(MediaStore.Downloads.IS_PENDING, 1)
+        }
+        val resolver = context.contentResolver
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: error("Couldn't create the file")
+        resolver.openOutputStream(uri)?.use { output -> source.inputStream().use { it.copyTo(output) } } ?: error("Couldn't write the file")
+        resolver.update(uri, ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }, null, null)
+        source.delete()
+        val entry = Entry(-1, name, url, type, System.currentTimeMillis(), uri.toString())
+        entries.add(0, entry)
+        save()
+        return entry
+    }
+
     private fun saveDataUrl(url: String, name: String, type: String): Entry {
         // data:[<mediatype>][;base64],<data>
         val comma = url.indexOf(',')

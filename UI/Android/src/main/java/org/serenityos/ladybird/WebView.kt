@@ -8,7 +8,6 @@ package org.serenityos.ladybird
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Matrix
 import android.graphics.SurfaceTexture
 import android.text.InputType
 import android.view.GestureDetector
@@ -42,9 +41,7 @@ interface WebViewClient {
     fun onRequestConfirm(message: String)
     fun onRequestPrompt(message: String, default: String)
     fun onRequestSelectDropdown(labels: Array<String>, ids: IntArray, enabled: BooleanArray, selectedIndex: Int)
-    fun onResourceStatusChange(countWaiting: Int)
     fun onWebContentCrashed()
-    fun onRequestDownload(url: String, contentDisposition: String, mimeType: String)
     fun onFindInPageResult(currentIndex: Int, totalMatches: Int)
     fun onZoomChanged(level: Float)
 }
@@ -55,7 +52,7 @@ interface WebViewClient {
  */
 // FIXME: This should (eventually) implement NestedScrollingChild3 and ScrollingView
 //
-// Frames are presented by native code straight into this TextureView's buffer as soon as WebContent finishes them,
+// Frames are presented by native code straight into this TextureView's buffer as soon as the Compositor finishes them,
 // so drawing a page involves no Java code, no Bitmap and no per-frame texture upload.
 class WebView(context: Context) : TextureView(context), TextureView.SurfaceTextureListener {
     val impl = WebViewImplementation(this)
@@ -81,8 +78,8 @@ class WebView(context: Context) : TextureView(context), TextureView.SurfaceTextu
         surfaceTextureListener = this
     }
 
-    fun initialize(parent: WebView? = null, pageIndex: Long = -1) {
-        impl.initialize(parent?.impl, pageIndex)
+    fun initialize(isPrivate: Boolean, existingViewId: Long = -1) {
+        impl.initialize(isPrivate, existingViewId)
         if (pageWidth > 0 && pageHeight > 0)
             pushGeometry(pageWidth, pageHeight)
         surface?.let { impl.setSurface(it) }
@@ -134,8 +131,6 @@ class WebView(context: Context) : TextureView(context), TextureView.SurfaceTextu
     fun onFrameReady() {
         ++framesReceived
         (client as? Tab)?.onFrameForTiming()
-        if (pinchCommitTime != 0L && android.os.SystemClock.uptimeMillis() - pinchCommitTime >= PINCH_SETTLE_MS)
-            endPinchPreview()
     }
 
     /**
@@ -266,82 +261,39 @@ class WebView(context: Context) : TextureView(context), TextureView.SurfaceTextu
 
     // --- Pinch to zoom ---
     //
-    // Ladybird has no visual viewport scaling yet, so a pinch zooms the page (like the menu's zoom buttons). While the
-    // fingers move, the last frame is scaled on screen for immediate feedback; on release the scale becomes the page's
-    // zoom level, and the page is scrolled so that the content under the fingers stays where it is.
+    // The page zooms its visual viewport, as in Chrome: the layout stays as it is and the page is magnified around the
+    // fingers. Moving both fingers pans, which scrolls the page.
 
-    private val pinchMatrix = Matrix()
-    private val pinchValues = FloatArray(9)
     private var isPinching = false
     private var lastFocusX = 0f
     private var lastFocusY = 0f
-    /** When the zoom was committed; the scaled preview stays up until a frame at the new zoom arrives. */
-    private var pinchCommitTime = 0L
     /** Set when a second finger lands: the rest of this touch sequence belongs to the pinch, not to taps or scrolls. */
     private var touchIsMultiFinger = false
 
     private val scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
             scroller.forceFinished(true)
-            endPinchPreview()
             isPinching = true
-            // Hold the current frame on screen; frames rendered at the old zoom would fight the preview.
-            impl.setPresentationPaused(true)
             lastFocusX = detector.focusX
             lastFocusY = detector.focusY
             return true
         }
 
         override fun onScale(detector: ScaleGestureDetector): Boolean {
-            pinchMatrix.getValues(pinchValues)
-            val current = pinchValues[Matrix.MSCALE_X]
-            val target = (current * detector.scaleFactor).coerceIn(MIN_ZOOM / zoomLevel, MAX_ZOOM / zoomLevel)
-            val factor = target / current
-            pinchMatrix.postScale(factor, factor, detector.focusX, detector.focusY)
-            pinchMatrix.postTranslate(detector.focusX - lastFocusX, detector.focusY - lastFocusY)
+            impl.pinch(detector.focusX, detector.focusY, detector.scaleFactor - 1f, true)
+            sendScroll(lastFocusX - detector.focusX, lastFocusY - detector.focusY, detector.focusX, detector.focusY)
             lastFocusX = detector.focusX
             lastFocusY = detector.focusY
-            setTransform(pinchMatrix)
             return true
         }
 
         override fun onScaleEnd(detector: ScaleGestureDetector) {
             isPinching = false
-            commitPinch()
+            impl.pinch(detector.focusX, detector.focusY, 0f, false)
         }
     })
 
-    private fun commitPinch() {
-        pinchMatrix.getValues(pinchValues)
-        val scale = pinchValues[Matrix.MSCALE_X]
-        val translateX = pinchValues[Matrix.MTRANS_X]
-        val translateY = pinchValues[Matrix.MTRANS_Y]
-        if (kotlin.math.abs(scale - 1f) < 0.02f) {
-            // Barely a zoom: treat it as a two-finger drag.
-            endPinchPreview()
-            sendScroll(-translateX, -translateY, width / 2f, height / 2f)
-            return
-        }
-        zoomLevel = impl.setZoom((zoomLevel * scale * 100).roundToInt() / 100f)
-        // A point q on screen showed CSS point scroll + (q - t) / (s * density * zoom); keep it there after zooming.
-        // That works out to scrolling by -t in device pixels at the new zoom, whatever q is.
-        wheelRemainderX = 0f
-        wheelRemainderY = 0f
-        sendScroll(-translateX, -translateY, width / 2f, height / 2f)
-        pinchCommitTime = android.os.SystemClock.uptimeMillis()
-        postDelayed({ if (pinchCommitTime != 0L) endPinchPreview() }, PINCH_PREVIEW_TIMEOUT_MS)
-        client?.onZoomChanged(zoomLevel)
-    }
-
-    private fun endPinchPreview() {
-        pinchMatrix.reset()
-        pinchCommitTime = 0L
-        setTransform(null)
-        if (impl.isInitialized)
-            impl.setPresentationPaused(false)
-    }
-
-    private val isShowingPinchPreview get() = isPinching || pinchCommitTime != 0L
+    private val isShowingPinchPreview get() = false
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (!impl.isInitialized)
@@ -519,11 +471,6 @@ class WebView(context: Context) : TextureView(context), TextureView.SurfaceTextu
     }
 
     companion object {
-        // Pinch zoom range; Ladybird itself allows 30% to 500%.
-        const val MIN_ZOOM = 0.5f
-        const val MAX_ZOOM = 3f
-        private const val PINCH_SETTLE_MS = 120L
-        private const val PINCH_PREVIEW_TIMEOUT_MS = 700L
 
         // Web::UIEvents::KeyCode values (Windows virtual key codes).
         const val KEY_BACKSPACE = 0x08

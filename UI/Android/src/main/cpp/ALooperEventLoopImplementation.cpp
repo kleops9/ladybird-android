@@ -102,7 +102,7 @@ intptr_t ALooperEventLoopManager::register_timer(Core::EventReceiver& receiver, 
     long timer_id = env.get()->CallLongMethod(m_timer_service, m_register_timer, timer, !should_reload, millis);
 
     // FIXME: Is there a race condition here? Maybe we should take a lock on the timers...
-    thread_data.timers.set(timer_id, { receiver.make_weak_ptr() });
+    thread_data.timers.set(timer_id, { receiver.make_weak_ptr(), receiver.timer_generation() });
 
     return timer_id;
 }
@@ -201,14 +201,6 @@ void ALooperEventLoopImplementation::quit(int code)
 void ALooperEventLoopImplementation::wake()
 {
     ALooper_wake(m_event_loop);
-}
-
-void ALooperEventLoopImplementation::post_event(Core::EventReceiver& receiver, NonnullOwnPtr<Core::Event>&& event)
-{
-    m_thread_event_queue.post_event(receiver, move(event));
-
-    if (&m_thread_event_queue != &Core::ThreadEventQueue::current())
-        wake();
 }
 
 static int notifier_callback(int fd, int events, void* data)

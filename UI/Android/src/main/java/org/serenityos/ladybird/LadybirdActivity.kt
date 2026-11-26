@@ -89,6 +89,9 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
     /** Which tabs the tab switcher shows: normal or incognito. */
     private var switcherShowsIncognito = false
 
+    // Whether onCreate() got as far as starting the native code, after which there is something to tear down.
+    private var nativeStarted = false
+
     private val downloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
@@ -109,11 +112,17 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        resourceDir = TransferAssets.transferAssets(this)
+        resourceDir = File(filesDir, "Lagom").absolutePath
         extractAssetsIfNeeded()
-        val userDir = applicationContext.getExternalFilesDir(null)!!.absolutePath
-        initNativeCode(resourceDir, "Ladybird", timerService, userDir)
-        WebContentSlots.resourceDir = resourceDir
+        val hubDownloads = File(cacheDir, "downloads").apply { mkdirs() }
+        if (!initNativeCode(
+                applicationInfo.nativeLibraryDir, resourceDir, filesDir.absolutePath, cacheDir.absolutePath,
+                hubDownloads.absolutePath, File(filesDir, "cacert.pem").absolutePath, "Ladybird", timerService)) {
+            Toast.makeText(this, "Ladybird couldn't start its browser process", Toast.LENGTH_LONG).show()
+            finish()
+            return
+        }
+        nativeStarted = true
 
         store = BrowserStore(this)
         downloads = Downloads(this)
@@ -158,6 +167,10 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
     }
 
     override fun onDestroy() {
+        if (!nativeStarted) {
+            super.onDestroy()
+            return
+        }
         unregisterReceiver(downloadReceiver)
         for (tab in tabs)
             tab.close()
@@ -182,29 +195,40 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
 
     // --- Setup ---
 
+    /** Extracts the resources that came with this version of the APK, unless they're already there. */
     private fun extractAssetsIfNeeded() {
-        val testFile = File("$resourceDir/res/icons/48x48/app-browser.png")
-        if (testFile.exists())
+        val version = packageManager.getPackageInfo(packageName, 0).lastUpdateTime.toString()
+        val stamp = File(resourceDir, ".version")
+        if (stamp.exists() && stamp.readText() == version)
             return
-        ZipFile("$resourceDir/ladybird-assets.zip").use { zip ->
+        val root = File(resourceDir)
+        root.deleteRecursively()
+        root.mkdirs()
+        val zipPath = File(cacheDir, "ladybird-assets.zip")
+        assets.open("ladybird-assets.zip").use { input -> zipPath.outputStream().use { output -> input.copyTo(output) } }
+        ZipFile(zipPath).use { zip ->
             zip.entries().asSequence().forEach { entry ->
-                val file = File("$resourceDir/${entry.name}")
+                val file = File(root, entry.name)
+                if (!file.canonicalPath.startsWith(root.canonicalPath))
+                    return@forEach
                 if (!entry.isDirectory) {
                     file.parentFile?.mkdirs()
                     zip.getInputStream(entry).use { input -> file.outputStream().use { output -> input.copyTo(output) } }
                 }
             }
         }
+        zipPath.delete()
 
-        // curl has some issues with the Android's way of storing certificates.
-        // We need to do this in order to make curl happy.
-        val certMain = File("$resourceDir/cacert.pem")
+        // curl can't read Android's certificate directory (one file per certificate, named by hash), so it gets them all
+        // in one file.
+        val certMain = File(filesDir, "cacert.pem")
         certMain.outputStream().use { output ->
             Files.walk(Path("/system/etc/security/cacerts")).forEach { certPath ->
                 if (!certPath.isDirectory())
                     certPath.inputStream().use { input -> input.copyTo(output) }
             }
         }
+        stamp.writeText(version)
     }
 
     private fun applyNightMode() {
@@ -751,22 +775,8 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
 
     // --- TabHost ---
 
-    override fun prepareWebContentSlot(forTab: Tab) {
-        // Each live tab has its own WebContent process; when they are all in use, free the least recently used.
-        while (WebContentSlots.freeCount == 0) {
-            val victim = tabs.filter { it !== forTab && it !== activeTab && it.view != null }.minByOrNull { it.lastActive } ?: return
-            victim.discard()
-        }
-    }
-
     override fun configureNewView(tab: Tab, view: WebView) {
         view.presize(binding.webContainer.width, binding.webContainer.height)
-        val scheme = when (store.theme) {
-            WebViewImplementation.COLOR_SCHEME_AUTO -> if (isNight) WebViewImplementation.COLOR_SCHEME_DARK else WebViewImplementation.COLOR_SCHEME_LIGHT
-            else -> store.theme
-        }
-        view.impl.setPreferredColorScheme(scheme)
-        view.impl.setMobileUserAgent(!store.desktopSiteByDefault)
     }
 
     override fun onTabStateChanged(tab: Tab) {
@@ -794,7 +804,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
         val tab = Tab(nextTabId++, this, url = "about:blank", openerId = opener.id, isIncognito = opener.isIncognito)
         val index = tabs.indexOf(opener) + 1
         tabs.add(index.coerceIn(0, tabs.size), tab)
-        tab.ensureView(this, opener, pageIndex)
+        tab.ensureView(this, pageIndex)
         if (activate)
             activateTab(tab)
         else
@@ -929,7 +939,8 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
     // --- Downloads ---
 
     override fun onTabDownload(tab: Tab, url: String, contentDisposition: String, mimeType: String) {
-        val cookies = tab.view?.impl?.takeIf { it.isInitialized }?.cookiesForURL(url)
+        // FIXME: Have the Hub download links too, so that it sends the page's cookies.
+        val cookies: String? = null
         val userAgent = WebViewImplementation.userAgent(!store.desktopSiteByDefault)
         try {
             val entry = downloads.start(url, contentDisposition, mimeType, cookies, userAgent, tab.url)
@@ -1231,7 +1242,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
         val desktopRow = add(R.drawable.ic_desktop, R.string.desktop_site) {
             store.desktopSiteByDefault = !store.desktopSiteByDefault
             for (t in tabs)
-                t.view?.impl?.setMobileUserAgent(!store.desktopSiteByDefault)
+                WebViewImplementation.setMobileUserAgent(!store.desktopSiteByDefault)
             tab.view?.impl?.reload()
         }
         desktopRow.findViewById<LinearLayout>(R.id.menu_item_trailing).addView(CheckBox(this).apply {
@@ -1309,7 +1320,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
                     2 -> {
                         store.desktopSiteByDefault = !store.desktopSiteByDefault
                         for (t in tabs)
-                            t.view?.impl?.setMobileUserAgent(!store.desktopSiteByDefault)
+                            WebViewImplementation.setMobileUserAgent(!store.desktopSiteByDefault)
                         showSettings()
                     }
                     3 -> chooseRenderer()
@@ -1602,9 +1613,58 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
         }
     }
 
+    // --- Calls from the Hub (through native code) ---
+
+    /** A page or the Hub asked for a URL to open in a new tab, as for a link that the user opened in one. */
+    private fun openUrlInNewTabFromHub(url: String, activate: Boolean, isPrivate: Boolean) {
+        val tab = createTab(url, activate = activate, incognito = isPrivate)
+        if (activate)
+            showActiveTab()
+        else
+            onTabStateChanged(tab)
+    }
+
+    private fun setClipboardText(text: String) = copyToClipboard(text)
+
+    private fun clipboardText(): String {
+        val clip = getSystemService(ClipboardManager::class.java).primaryClip ?: return ""
+        if (clip.itemCount == 0)
+            return ""
+        return clip.getItemAt(0).coerceToText(this)?.toString() ?: ""
+    }
+
+    /** status is a WebView::FileDownloader::DownloadStatus: 0 in progress, 1 paused, 2 completed, 3 canceled, 4 failed. */
+    private fun onDownloadChanged(id: Long, url: String, destination: String, status: Int, downloaded: Long, total: Long, isPrivate: Boolean) {
+        if (!hubDownloadsAnnounced.contains(id) && status == 0) {
+            hubDownloadsAnnounced.add(id)
+            Snackbar.make(binding.content, "Downloading ${File(destination).name}", Snackbar.LENGTH_SHORT).show()
+        }
+        when (status) {
+            2 -> {
+                hubDownloadsAnnounced.remove(id)
+                try {
+                    val entry = downloads.importFile(File(destination), url)
+                    Snackbar.make(binding.content, "Downloaded ${entry.fileName}", Snackbar.LENGTH_LONG)
+                        .setAction("Open") { openDownload(entry) }
+                        .show()
+                } catch (e: Exception) {
+                    Snackbar.make(binding.content, "Couldn't save ${File(destination).name}: ${e.message}", Snackbar.LENGTH_LONG).show()
+                }
+            }
+            3, 4 -> {
+                hubDownloadsAnnounced.remove(id)
+                if (status == 4)
+                    Snackbar.make(binding.content, "Couldn't download ${File(destination).name}", Snackbar.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private val hubDownloadsAnnounced = mutableSetOf<Long>()
+
     private external fun initNativeCode(
-        resourceDir: String, tag: String, timerService: TimerExecutorService, userDir: String
-    )
+        nativeLibraryDir: String, resourceDir: String, dataDir: String, cacheDir: String, downloadsDir: String,
+        certificatesPath: String, tag: String, timerService: TimerExecutorService
+    ): Boolean
 
     private external fun disposeNativeCode()
     private external fun execMainEventLoop()

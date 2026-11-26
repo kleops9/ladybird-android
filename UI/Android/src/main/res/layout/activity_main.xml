@@ -1,47 +1,315 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fitsSystemWindows="true"
+    android:background="@color/page_bg"
+    android:defaultFocusHighlightEnabled="false"
+    android:focusable="true"
+    android:focusableInTouchMode="true"
     tools:context=".LadybirdActivity">
 
-    <com.google.android.material.appbar.AppBarLayout
-        android:id="@+id/app_bar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize">
-        <!-- FIXME: Add Navigation, URL bar, Tab interactions, etc -->
-        <androidx.appcompat.widget.Toolbar
-            android:id="@+id/toolbar"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            app:layout_scrollFlags="scroll|snap|enterAlways">
-
-            <EditText
-                android:id="@+id/urlEditText"
-                style="@style/Widget.AppCompat.EditText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:autofillHints="url"
-                android:ems="10"
-                android:hint="@string/url_edit_default"
-                android:imeOptions="actionGo|actionSearch"
-                android:inputType="textUri"
-                android:singleLine="true" />
-        </androidx.appcompat.widget.Toolbar>
-    </com.google.android.material.appbar.AppBarLayout>
-
-    <FrameLayout
-        android:id="@+id/web_view_container"
+    <LinearLayout
+        android:id="@+id/browser_column"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+        android:orientation="vertical">
 
-        <org.serenityos.ladybird.WebView
-            android:id="@+id/web_view"
+        <!-- Extends under the status bar (padding set at runtime) so a site's theme color fills both. -->
+        <FrameLayout
+            android:id="@+id/toolbar_container"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            tools:context=".LadybirdActivity" />
-    </FrameLayout>
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+            android:layout_height="wrap_content"
+            android:background="@color/toolbar_bg">
+
+            <LinearLayout
+                android:id="@+id/toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp">
+
+                <ImageButton
+                    android:id="@+id/home_button"
+                    style="@style/ToolbarIconButton"
+                    android:contentDescription="@string/home"
+                    android:src="@drawable/ic_home" />
+
+                <LinearLayout
+                    android:id="@+id/omnibox"
+                    android:layout_width="0dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="2dp"
+                    android:layout_marginEnd="2dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_omnibox"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageButton
+                        android:id="@+id/security_icon"
+                        android:layout_width="38dp"
+                        android:layout_height="38dp"
+                        android:layout_marginStart="5dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="@string/page_info"
+                        android:padding="10dp"
+                        android:scaleType="fitCenter"
+                        android:src="@drawable/ic_search" />
+
+                    <EditText
+                        android:id="@+id/url_field"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:background="@null"
+                        android:fontFamily="sans-serif"
+                        android:hint="@string/url_edit_default"
+                        android:imeOptions="actionGo|flagNoExtractUi"
+                        android:importantForAutofill="no"
+                        android:inputType="textUri"
+                        android:paddingStart="2dp"
+                        android:paddingEnd="4dp"
+                        android:selectAllOnFocus="true"
+                        android:singleLine="true"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_secondary"
+                        android:textSize="16sp" />
+
+                    <ImageButton
+                        android:id="@+id/clear_button"
+                        android:layout_width="38dp"
+                        android:layout_height="38dp"
+                        android:layout_marginEnd="5dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="@string/clear"
+                        android:padding="10dp"
+                        android:scaleType="fitCenter"
+                        android:src="@drawable/ic_close"
+                        android:visibility="gone" />
+                </LinearLayout>
+
+                <FrameLayout
+                    android:id="@+id/tab_switcher_button"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/switch_tabs">
+
+                    <TextView
+                        android:id="@+id/tab_count"
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_gravity="center"
+                        android:background="@drawable/bg_tab_counter"
+                        android:fontFamily="sans-serif-medium"
+                        android:gravity="center"
+                        android:text="1"
+                        android:textColor="@color/icon_tint"
+                        android:textSize="11sp" />
+                </FrameLayout>
+
+                <ImageButton
+                    android:id="@+id/menu_button"
+                    style="@style/ToolbarIconButton"
+                    android:contentDescription="@string/more_options"
+                    android:src="@drawable/ic_more_vert" />
+            </LinearLayout>
+
+            <!-- Find in page replaces the toolbar while it is open. -->
+            <LinearLayout
+                android:id="@+id/find_bar"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="10dp"
+                android:paddingEnd="4dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:id="@+id/find_box"
+                    android:layout_width="0dp"
+                    android:layout_height="44dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_omnibox_focused"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp">
+
+                    <ImageView
+                        android:id="@+id/find_icon"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_search" />
+
+                    <EditText
+                        android:id="@+id/find_field"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_marginStart="10dp"
+                        android:layout_weight="1"
+                        android:background="@null"
+                        android:hint="@string/find_hint"
+                        android:imeOptions="actionSearch|flagNoExtractUi"
+                        android:importantForAutofill="no"
+                        android:inputType="text"
+                        android:singleLine="true"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_secondary"
+                        android:textSize="16sp" />
+
+                    <TextView
+                        android:id="@+id/find_count"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <ImageButton
+                    android:id="@+id/find_previous"
+                    style="@style/ToolbarIconButton"
+                    android:layout_width="44dp"
+                    android:contentDescription="@string/find_previous"
+                    android:src="@drawable/ic_keyboard_arrow_up" />
+
+                <ImageButton
+                    android:id="@+id/find_next"
+                    style="@style/ToolbarIconButton"
+                    android:layout_width="44dp"
+                    android:contentDescription="@string/find_next"
+                    android:src="@drawable/ic_keyboard_arrow_down" />
+
+                <ImageButton
+                    android:id="@+id/find_close"
+                    style="@style/ToolbarIconButton"
+                    android:layout_width="44dp"
+                    android:contentDescription="@string/clear"
+                    android:src="@drawable/ic_close" />
+            </LinearLayout>
+
+            <View
+                android:id="@+id/toolbar_divider"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_gravity="bottom"
+                android:background="@color/divider" />
+
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/progress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:max="1000"
+                android:visibility="invisible"
+                app:indicatorColor="@color/accent"
+                app:trackColor="@android:color/transparent"
+                app:trackCornerRadius="0dp"
+                app:trackThickness="2dp" />
+        </FrameLayout>
+
+        <FrameLayout
+            android:id="@+id/content"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <FrameLayout
+                android:id="@+id/web_container"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@android:color/white" />
+
+            <include
+                android:id="@+id/ntp"
+                layout="@layout/view_new_tab_page"
+                android:visibility="gone" />
+
+            <include
+                android:id="@+id/incognito_ntp"
+                layout="@layout/view_incognito_page"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/sad_tab"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_hero_glow"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="32dp"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:alpha="0.85"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ladybird_mark" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:text="@string/sad_tab_title"
+                    android:textAppearance="@style/TextAppearance.Ladybird.Title" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:maxWidth="320dp"
+                    android:text="@string/sad_tab_message"
+                    android:textAppearance="@style/TextAppearance.Ladybird.Muted"
+                    android:textSize="15sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/sad_tab_reload"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="28dp"
+                    android:text="@string/sad_tab_reload" />
+            </LinearLayout>
+
+            <!-- Settings › Show frame rate: frames per second arriving from the active tab's WebContent. -->
+            <TextView
+                android:id="@+id/frame_rate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|end"
+                android:layout_margin="8dp"
+                android:background="@drawable/bg_frame_rate"
+                android:fontFamily="monospace"
+                android:paddingStart="8dp"
+                android:paddingTop="3dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="3dp"
+                android:textColor="@android:color/white"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/suggestions"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@color/page_bg"
+                android:paddingTop="4dp"
+                android:clipToPadding="false"
+                android:visibility="gone" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <include
+        android:id="@+id/tab_switcher"
+        layout="@layout/view_tab_switcher"
+        android:visibility="gone" />
+</FrameLayout>

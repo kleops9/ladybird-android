@@ -1,19 +1,169 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Theme.Ladybird" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
-        <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/purple_500</item>
-        <item name="colorPrimaryVariant">@color/purple_700</item>
-        <item name="colorOnPrimary">@color/white</item>
-        <!-- Secondary brand color. -->
-        <item name="colorSecondary">@color/teal_200</item>
-        <item name="colorSecondaryVariant">@color/teal_700</item>
-        <item name="colorOnSecondary">@color/black</item>
-        <!-- Status bar color. -->
-        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
-        <!-- Customize your theme here. -->
-        <item name="android:editTextBackground">@color/white</item>
-        <item name="windowActionBar">false</item>
-        <item name="windowNoTitle">true</item>
+    <!--
+        Styled after ladybird.org: white or black pages, quiet grey surfaces with hairline borders, one violet accent,
+        pill-shaped controls, 8-12dp corners and light-weight display type. The site's typeface (General Sans) isn't
+        bundled; the system sans in light and medium weights stands in for its 300 and 520 weights.
+    -->
+    <style name="Theme.Ladybird" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/accent</item>
+        <item name="colorOnPrimary">@color/on_accent</item>
+        <item name="colorPrimaryContainer">@color/accent_tint</item>
+        <item name="colorOnPrimaryContainer">@color/text_primary</item>
+        <item name="colorSecondary">@color/accent</item>
+        <item name="colorOnSecondary">@color/on_accent</item>
+        <item name="colorSecondaryContainer">@color/accent_tint</item>
+        <item name="colorTertiary">@color/brand_slate</item>
+        <item name="colorSurface">@color/page_bg</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary</item>
+        <item name="colorSurfaceContainerLowest">@color/page_bg</item>
+        <item name="colorSurfaceContainerLow">@color/page_bg</item>
+        <item name="colorSurfaceContainer">@color/page_bg</item>
+        <item name="colorSurfaceContainerHigh">@color/page_bg</item>
+        <item name="colorSurfaceContainerHighest">@color/subtle_bg</item>
+        <item name="colorOutline">@color/border</item>
+        <item name="colorOutlineVariant">@color/border_light</item>
+        <item name="android:colorBackground">@color/page_bg</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:textColorHighlight">@color/accent_tint</item>
+        <item name="android:colorControlActivated">@color/accent</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">@bool/light_system_bars</item>
+        <item name="android:windowLightNavigationBar">@bool/light_system_bars</item>
+        <item name="android:windowBackground">@color/page_bg</item>
+        <item name="materialButtonStyle">@style/Widget.Ladybird.Button</item>
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.Ladybird.Dialog</item>
+        <item name="bottomSheetDialogTheme">@style/ThemeOverlay.Ladybird.BottomSheet</item>
+        <item name="snackbarStyle">@style/Widget.Ladybird.Snackbar</item>
+    </style>
+
+    <style name="Theme.Ladybird.FullScreenDialog" parent="Theme.Ladybird">
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowBackground">@color/page_bg</item>
+    </style>
+
+    <!-- Primary button: the ladybird.org download button (accent gradient pill). -->
+    <style name="Widget.Ladybird.Button" parent="Widget.Material3.Button">
+        <item name="android:background">@drawable/bg_cta</item>
+        <item name="backgroundTint">@null</item>
+        <item name="android:textColor">@color/on_accent</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:letterSpacing">0</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:paddingStart">28dp</item>
+        <item name="android:paddingEnd">28dp</item>
+    </style>
+
+    <!-- Secondary button: the site's outline button. -->
+    <style name="Widget.Ladybird.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="strokeColor">@color/border</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:minHeight">48dp</item>
+    </style>
+
+    <style name="Widget.Ladybird.Button.Text" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textColor">@color/accent</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <style name="ThemeOverlay.Ladybird.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="colorSurface">@color/page_bg</item>
+        <item name="colorSurfaceContainerHigh">@color/page_bg</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.Ladybird.Card</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/TextAppearance.Ladybird.DialogTitle.Style</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Widget.Ladybird.Button.Text</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Widget.Ladybird.Button.Text</item>
+        <item name="buttonBarNeutralButtonStyle">@style/Widget.Ladybird.Button.Text</item>
+    </style>
+
+    <style name="TextAppearance.Ladybird.DialogTitle.Style" parent="MaterialAlertDialog.Material3.Title.Text">
+        <item name="android:fontFamily">sans-serif-light</item>
+        <item name="android:textSize">24sp</item>
+        <item name="android:textColor">@color/text_primary</item>
+    </style>
+
+    <style name="ShapeAppearance.Ladybird.Card" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">16dp</item>
+    </style>
+
+    <style name="ThemeOverlay.Ladybird.BottomSheet" parent="ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/Widget.Ladybird.BottomSheet</item>
+    </style>
+
+    <style name="Widget.Ladybird.BottomSheet" parent="Widget.Material3.BottomSheet.Modal">
+        <item name="backgroundTint">@color/page_bg</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Ladybird.Sheet</item>
+    </style>
+
+    <style name="ShapeAppearance.Ladybird.Sheet" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">16dp</item>
+        <item name="cornerSizeTopRight">16dp</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
+    </style>
+
+    <style name="Widget.Ladybird.Snackbar" parent="Widget.Material3.Snackbar">
+        <item name="shapeAppearance">@style/ShapeAppearance.Ladybird.Small</item>
+    </style>
+
+    <style name="ShapeAppearance.Ladybird.Small" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">8dp</item>
+    </style>
+
+    <style name="ToolbarIconButton">
+        <item name="android:layout_width">48dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="android:scaleType">center</item>
+        <item name="tint">@color/icon_tint</item>
+    </style>
+
+    <!-- Type, after the site's scale: display at weight 300, emphasis at ~520, body at ~450. -->
+    <style name="TextAppearance.Ladybird.Display" parent="">
+        <item name="android:fontFamily">sans-serif-light</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">30sp</item>
+        <item name="android:letterSpacing">-0.01</item>
+    </style>
+
+    <style name="TextAppearance.Ladybird.Title" parent="">
+        <item name="android:fontFamily">sans-serif-light</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">22sp</item>
+    </style>
+
+    <style name="TextAppearance.Ladybird.Emphasis" parent="">
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">15sp</item>
+    </style>
+
+    <style name="TextAppearance.Ladybird.Body" parent="">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">15sp</item>
+    </style>
+
+    <style name="TextAppearance.Ladybird.Muted" parent="">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:textSize">13sp</item>
+    </style>
+
+    <style name="TextAppearance.Ladybird.Label" parent="">
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:textAllCaps">true</item>
     </style>
 </resources>

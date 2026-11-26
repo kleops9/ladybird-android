@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="272dp"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_menu"
+    android:elevation="8dp"
+    android:orientation="vertical"
+    android:paddingTop="6dp"
+    android:paddingBottom="8dp">
+
+    <LinearLayout
+        android:id="@+id/menu_icon_row"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp">
+
+        <ImageButton
+            android:id="@+id/menu_back"
+            style="@style/ToolbarIconButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:contentDescription="@string/back"
+            android:src="@drawable/ic_arrow_back" />
+
+        <ImageButton
+            android:id="@+id/menu_forward"
+            style="@style/ToolbarIconButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:contentDescription="@string/forward"
+            android:src="@drawable/ic_arrow_forward" />
+
+        <ImageButton
+            android:id="@+id/menu_bookmark"
+            style="@style/ToolbarIconButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:contentDescription="@string/bookmark"
+            android:src="@drawable/ic_star_border" />
+
+        <ImageButton
+            android:id="@+id/menu_info"
+            style="@style/ToolbarIconButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:contentDescription="@string/page_info"
+            android:src="@drawable/ic_info" />
+
+        <ImageButton
+            android:id="@+id/menu_reload"
+            style="@style/ToolbarIconButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:contentDescription="@string/reload"
+            android:src="@drawable/ic_refresh" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginBottom="4dp"
+        android:background="@color/divider" />
+
+    <LinearLayout
+        android:id="@+id/menu_items"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical" />
+</LinearLayout>

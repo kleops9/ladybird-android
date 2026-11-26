@@ -50,3 +50,13 @@ void bind_image_decoder_java(int ipc_socket)
     Ladybird::JavaEnvironment env(global_vm);
     env.get()->CallVoidMethod(global_instance, bind_image_decoder_method, ipc_socket);
 }
+
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_serenityos_ladybird_WebContentService_nativeSetForceCpuPainting(JNIEnv*, jobject, jboolean);
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_serenityos_ladybird_WebContentService_nativeSetForceCpuPainting(JNIEnv*, jobject, jboolean force_cpu_painting)
+{
+    set_force_cpu_painting(force_cpu_painting);
+}

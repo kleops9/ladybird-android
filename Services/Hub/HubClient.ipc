@@ -396,6 +396,8 @@ endpoint HubClient
     view_picture_in_picture_control_activated(u64 view_id, Compositing::PictureInPictureControl control) =|
     view_find_in_page(u64 view_id, size_t current_match_index, Optional<size_t> total_match_count) =|
     view_page_background_color_change(u64 view_id, Gfx::Color color) =|
+    // The page's theme color (<meta name=theme-color>), which a UI may color its toolbar with.
+    view_theme_color_change(u64 view_id, Gfx::Color color) =|
     view_screen_wake_lock_state_changed(u64 view_id, Web::ScreenWakeLockState state) =|
     view_web_content_crashed(u64 view_id, WebView::ViewImplementation::WebContentCrashReason reason) =|
     view_crash_overlay_state_change(u64 view_id, bool active) =|

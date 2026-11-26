@@ -598,6 +598,11 @@ void View::forward_callbacks_to_ui(bool is_tab)
         }
     };
 
+    on_theme_color_change = [this](auto const&... arguments) {
+        if (auto* ui = ConnectionFromUI::the())
+            ui->async_view_theme_color_change(view_id(), arguments...);
+    };
+
     on_page_background_color_change = [this](auto const&... arguments) {
         if (auto* ui = ConnectionFromUI::the()) {
             push_state_to_ui();

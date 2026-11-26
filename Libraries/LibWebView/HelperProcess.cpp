@@ -239,7 +239,7 @@ static ErrorOr<ChildIdentity> launch_helper_process(StringView server_name, Vect
             }
         }
 #endif
-#if defined(AK_OS_LINUX)
+#if defined(AK_OS_LINUX) && !defined(AK_OS_ANDROID)
         OwnPtr<Sandbox::ConnectBroker> connect_broker;
         OwnPtr<Core::File> connect_broker_child_file;
 
@@ -273,7 +273,7 @@ static ErrorOr<ChildIdentity> launch_helper_process(StringView server_name, Vect
             process.set_is_private(is_private);
             if (crash_report)
                 process.set_crash_report(crash_report.release_nonnull());
-#if defined(AK_OS_LINUX)
+#if defined(AK_OS_LINUX) && !defined(AK_OS_ANDROID)
             if (connect_broker)
                 process.set_connect_broker(connect_broker.release_nonnull());
 #endif

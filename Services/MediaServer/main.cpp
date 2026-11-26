@@ -65,7 +65,7 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
     // FFmpeg's libraries load before the sandbox would keep them from reading their files, and the system library's
     // dependencies make syscalls the sandbox will not allow.
     TRY(Media::FFmpeg::load_bundled_ffmpeg());
-#if defined(AK_OS_LINUX)
+#if defined(AK_OS_LINUX) && !defined(AK_OS_ANDROID)
     Media::FFmpeg::SystemFFmpeg::load();
 #endif
 

@@ -172,7 +172,7 @@ if (ANDROID)
     target_link_libraries(LibCore PRIVATE log)
 endif()
 
-if ((APPLE AND NOT IOS) OR LINUX)
+if ((APPLE AND NOT IOS) OR LINUX OR ANDROID)
     target_sources(LibCore PRIVATE CrashHandlerPOSIX.cpp)
 else()
     target_sources(LibCore PRIVATE CrashHandlerUnimplemented.cpp)

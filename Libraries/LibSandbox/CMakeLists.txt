@@ -3,7 +3,7 @@ set(SOURCES
     Sandbox.cpp
 )
 
-if (LINUX)
+if (LINUX OR ANDROID)
     list(APPEND SOURCES
         FileBroker.cpp
         GpuDriverPaths.cpp
@@ -13,6 +13,6 @@ endif()
 
 ladybird_lib(LibSandbox sandbox)
 
-if (LINUX OR APPLE)
+if (LINUX OR APPLE OR ANDROID)
     target_link_libraries(LibSandbox PRIVATE LibCore)
 endif()

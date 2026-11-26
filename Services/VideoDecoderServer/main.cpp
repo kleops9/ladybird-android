@@ -103,7 +103,7 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
     Media::FFmpeg::SystemFFmpeg::load();
 #endif
 
-#if defined(AK_OS_LINUX)
+#if defined(AK_OS_LINUX) && !defined(AK_OS_ANDROID)
     if (!disable_sandbox)
         TRY(VideoDecoderServer::restrict_filesystem(gpu_device_identity.has_value()));
 #endif

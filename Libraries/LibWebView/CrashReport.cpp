@@ -255,7 +255,7 @@ ErrorOr<void> CrashReport::record_build_description(StringView) { return {}; }
 
 #endif
 
-#if !defined(AK_OS_MACOS) && !defined(AK_OS_LINUX)
+#if !defined(AK_OS_MACOS) && (!defined(AK_OS_LINUX) || defined(AK_OS_ANDROID))
 void CrashReport::symbolicate_frame(ReportFrame&)
 {
 }

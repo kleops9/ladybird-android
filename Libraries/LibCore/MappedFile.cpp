@@ -83,7 +83,12 @@ ErrorOr<NonnullOwnPtr<MappedFile>> MappedFile::map_from_fd_range_and_close(int f
     if (mapping_size.has_overflow())
         return Error::from_errno(EOVERFLOW);
 
-    auto* mapping = TRY(Core::System::mmap(nullptr, mapping_size.value(), protection, flags, fd, page_aligned_offset, 0, path));
+    auto mapping_or_error = Core::System::mmap(nullptr, mapping_size.value(), protection, flags, fd, page_aligned_offset, 0, path);
+    // Linux before 6.7 refuses to map a write-sealed memfd shared, even read-only. Its contents can't change, so a private
+    // mapping reads the same bytes.
+    if (mapping_or_error.is_error() && mapping_or_error.error().code() == EPERM && flags == MAP_SHARED)
+        mapping_or_error = Core::System::mmap(nullptr, mapping_size.value(), protection, MAP_PRIVATE, fd, page_aligned_offset, 0, path);
+    auto* mapping = TRY(mapping_or_error);
     auto* data = reinterpret_cast<u8*>(mapping) + offset_in_mapping;
 
     return adopt_own(*new MappedFile(mapping, mapping_size.value(), data, size, mode));

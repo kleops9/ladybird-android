@@ -163,6 +163,11 @@ Vector<ByteString> Process::helper_process_environment(ProcessType type)
             is_allowed |= audio_names.contains_slow(entry.name);
         if (type == ProcessType::Compositor || type == ProcessType::VideoDecoderServer)
             is_allowed |= any_of(gpu_prefixes, [&](auto prefix) { return entry.name.starts_with(prefix); });
+#if defined(AK_OS_ANDROID)
+        // The helpers' libraries are in the app's native library directory, which the linker doesn't search by itself,
+        // and bionic finds the system's directories, such as the one with the time zone data, through ANDROID_*.
+        is_allowed |= entry.name == "LD_LIBRARY_PATH"sv || entry.name.starts_with("ANDROID_"sv);
+#endif
         if (is_allowed)
             environment.append(entry.full_entry);
     }

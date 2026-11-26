@@ -74,6 +74,12 @@ void platform_init(Optional<ByteString> ladybird_binary_path)
     s_ladybird_binary_path = move(ladybird_binary_path);
 
     s_ladybird_resource_root = [] {
+#ifdef AK_OS_ANDROID
+        // The APK can't hold a directory tree next to the executables, so the app extracts the resources into its data
+        // directory and tells every process where they are.
+        if (auto const* resource_root = getenv("LADYBIRD_RESOURCE_ROOT"))
+            return ByteString { resource_root };
+#endif
         auto app_dir = MUST(application_directory());
 #ifdef AK_OS_MACOS
         return LexicalPath(app_dir).parent().append("Resources"sv).string();
@@ -102,6 +108,10 @@ ErrorOr<Vector<ByteString>> get_paths_for_helper_process(StringView process_name
     TRY(paths.try_append(ByteString::formatted("{}/{}", application_path, process_name)));
 #endif
     // NOTE: Add platform-specific paths here
+#if defined(AK_OS_ANDROID)
+    // Android only installs and lets apps run files in the APK's native library directory, and only ones named lib*.so.
+    TRY(paths.try_append(ByteString::formatted("{}/lib{}.so", application_path, process_name)));
+#endif
     return paths;
 }
 

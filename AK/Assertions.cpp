@@ -119,6 +119,10 @@ void ladybird_rust_panic_may_abort()
 void ladybird_rust_panic_will_abort()
 {
     if (__atomic_load_n(&s_rust_is_panicking, __ATOMIC_ACQUIRE)) {
+#if defined(AK_OS_ANDROID)
+        // Android has no crash reports, and nobody reads an app's standard error, so put the message in the system log.
+        ERRORLN("RUST PANIC: {}", s_rust_panic_message.data());
+#endif
         if (auto callback = __atomic_load_n(&s_assertion_failure_callback, __ATOMIC_ACQUIRE))
             callback(AK::AssertionFailureKind::RustPanic, s_rust_panic_message.data());
         dump_backtrace(1, 100);

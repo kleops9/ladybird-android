@@ -169,7 +169,7 @@ pub fn stack_limit(reserve: usize) -> u64 {
     (current.saturating_sub(1024 * 1024) + reserve) as u64
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 fn thread_stack_lowest_address() -> Option<usize> {
     unsafe {
         let mut attributes: libc::pthread_attr_t = std::mem::zeroed();
@@ -205,7 +205,7 @@ fn thread_stack_lowest_address() -> Option<usize> {
     Some(low)
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+#[cfg(not(any(target_os = "linux", target_os = "android", target_os = "macos", windows)))]
 fn thread_stack_lowest_address() -> Option<usize> {
     None
 }
@@ -220,7 +220,7 @@ mod fault {
     static mut PREVIOUS_SIGSEGV: libc::sigaction = unsafe { std::mem::zeroed() };
     static mut PREVIOUS_SIGBUS: libc::sigaction = unsafe { std::mem::zeroed() };
 
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    #[cfg(all(any(target_os = "linux", target_os = "android"), target_arch = "x86_64"))]
     unsafe fn instruction_pointer(context: *mut libc::c_void) -> *mut usize {
         unsafe {
             let context = context.cast::<libc::ucontext_t>();
@@ -228,7 +228,7 @@ mod fault {
         }
     }
 
-    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    #[cfg(all(any(target_os = "linux", target_os = "android"), target_arch = "aarch64"))]
     unsafe fn instruction_pointer(context: *mut libc::c_void) -> *mut usize {
         unsafe {
             let context = context.cast::<libc::ucontext_t>();

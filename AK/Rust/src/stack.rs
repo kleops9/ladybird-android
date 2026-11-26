@@ -21,7 +21,7 @@ pub fn limit_for_budget(bytes: usize) -> usize {
     (&raw const marker as usize).saturating_sub(bytes)
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 fn thread_stack_lowest_address() -> Option<usize> {
     // SAFETY: The attributes live for the calls, and are destroyed once initialized.
     unsafe {
@@ -67,7 +67,7 @@ fn thread_stack_lowest_address() -> Option<usize> {
     Some(low_limit + stack_guarantee as usize)
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+#[cfg(not(any(target_os = "linux", target_os = "android", target_os = "macos", windows)))]
 fn thread_stack_lowest_address() -> Option<usize> {
     None
 }

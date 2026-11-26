@@ -45,7 +45,7 @@ mod system {
         assert_ne!(mapping, libc::MAP_FAILED, "mapping address space for a column failed");
         // NB: The name tells the memory of columns apart in /proc/<pid>/smaps. A kernel that cannot name mappings
         //     fails the call, which changes nothing.
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", target_os = "android"))]
         // SAFETY: The range is the mapping made above, and the kernel copies the name.
         unsafe {
             libc::prctl(
@@ -56,7 +56,7 @@ mod system {
                 name.as_ptr(),
             );
         }
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(not(any(target_os = "linux", target_os = "android")))]
         let _ = name;
         mapping
     }

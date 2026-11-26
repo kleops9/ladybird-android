@@ -1732,7 +1732,7 @@ mod tests {
         }
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "android"))]
     #[test]
     fn a_payload_file_the_peer_did_not_seal_ends_the_messages() {
         let (transport, mut peer) = with_raw_peer();
@@ -1755,7 +1755,7 @@ mod tests {
             .collect();
         a.post_message(bytes.clone(), Vec::new()).unwrap();
         let message = b.receive().unwrap();
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", target_os = "android"))]
         assert!(matches!(message.bytes, PayloadBytes::Mapped(_)));
         assert_eq!(message.bytes(), bytes);
     }

@@ -14,7 +14,7 @@
 use std::io;
 use std::os::fd::{FromRawFd, OwnedFd};
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 pub(crate) fn create_anonymous_file() -> io::Result<OwnedFd> {
     // NB: memfd_create() reads a NUL-terminated name and returns a new descriptor.
     let fd = unsafe { libc::memfd_create(c"".as_ptr(), libc::MFD_CLOEXEC | libc::MFD_ALLOW_SEALING) };
@@ -25,11 +25,11 @@ pub(crate) fn create_anonymous_file() -> io::Result<OwnedFd> {
     Ok(unsafe { OwnedFd::from_raw_fd(fd) })
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 const SEALS_OF_A_PAYLOAD: libc::c_int = libc::F_SEAL_WRITE | libc::F_SEAL_SHRINK | libc::F_SEAL_GROW;
 
 /// Keeps anything from changing the file from now on, so that a receiver may map it.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 pub(crate) fn seal(file: &std::fs::File) -> io::Result<()> {
     use std::os::fd::AsRawFd;
     // NB: F_ADD_SEALS only changes the seals of the owned file.
@@ -47,20 +47,20 @@ pub(crate) fn seal(file: &std::fs::File) -> io::Result<()> {
 }
 
 /// A read-only mapping of the start of a sealed file, which the mapping keeps alive.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 pub struct MappedPayload {
     address: std::ptr::NonNull<u8>,
     size: usize,
 }
 
 // SAFETY: The mapping is read-only, and the file under it can't change.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 unsafe impl Send for MappedPayload {}
 // SAFETY: As above.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 unsafe impl Sync for MappedPayload {}
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 impl MappedPayload {
     /// Maps the first `size` bytes of a file that its sender sealed, and refuses one that is unsealed or too small.
     pub(crate) fn map(file: OwnedFd, size: usize) -> io::Result<Self> {
@@ -127,7 +127,7 @@ impl MappedPayload {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 impl AsRef<[u8]> for MappedPayload {
     fn as_ref(&self) -> &[u8] {
         // SAFETY: The mapping has size readable bytes until this is dropped, and its file can't change or shrink.
@@ -135,7 +135,7 @@ impl AsRef<[u8]> for MappedPayload {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 impl Drop for MappedPayload {
     fn drop(&mut self) {
         // NB: This owns the mapping, which nothing reads afterwards.
@@ -143,7 +143,7 @@ impl Drop for MappedPayload {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
 pub(crate) fn create_anonymous_file() -> io::Result<OwnedFd> {
     use std::hash::{BuildHasher, RandomState};
     use std::os::fd::AsRawFd;

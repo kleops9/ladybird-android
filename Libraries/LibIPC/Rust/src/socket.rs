@@ -229,24 +229,24 @@ pub(crate) fn copy_payload_to_file(bytes: &[u8]) -> io::Result<std::fs::File> {
     // NB: A shared memory object of the BSDs grows by truncation only, not by writing past its end.
     file.set_len(bytes.len() as u64)?;
     file.write_all(bytes)?;
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "android"))]
     crate::shared_memory::seal(&file)?;
     Ok(file)
 }
 
 /// The payload of a message in the file it came in, which on Linux the sender has sealed.
 pub(crate) fn payload_from_file(fd: OwnedFd, size: usize) -> io::Result<PayloadBytes> {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "android"))]
     return Ok(PayloadBytes::Mapped(crate::shared_memory::MappedPayload::map(
         fd, size,
     )?));
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", target_os = "android")))]
     return Ok(PayloadBytes::Inline(copy_payload_from_file(fd, size)?));
 }
 
 /// Copies bytes before decoding, using pread so a size change reports a short read. The sender can still write to an
 /// unsealed file, so the copy is what gets decoded.
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
 fn copy_payload_from_file(fd: OwnedFd, size: usize) -> io::Result<Vec<u8>> {
     use std::os::unix::fs::FileExt;
     let file = std::fs::File::from(fd);
@@ -284,7 +284,7 @@ mod tests {
     use std::io::Read;
     use std::os::unix::net::UnixStream;
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "android"))]
     #[test]
     fn only_sealed_payload_files_are_mapped() {
         let file = copy_payload_to_file(b"payload").unwrap();

@@ -553,7 +553,7 @@ pub fn release_idle_thread_memory() {
 /// fill it: a vector a large write grows into fresh memory then takes its pages at once rather than a fault at a time.
 /// Where the system cannot, the writes map them in as they come.
 pub fn populate_room_for_write<T>(vector: &mut Vec<T>, additional: usize) {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "android"))]
     {
         unsafe extern "C" {
             fn madvise(address: *mut core::ffi::c_void, length: usize, advice: core::ffi::c_int) -> core::ffi::c_int;
@@ -577,7 +577,7 @@ pub fn populate_room_for_write<T>(vector: &mut Vec<T>, additional: usize) {
             unsafe { madvise(start as *mut core::ffi::c_void, end - start, MADV_POPULATE_WRITE) };
         }
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", target_os = "android")))]
     let _ = (vector, additional);
 }
 

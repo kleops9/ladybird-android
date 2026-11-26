@@ -14,7 +14,7 @@ pub enum PayloadBytes {
     Inline(Vec<u8>),
     #[cfg(target_vendor = "apple")]
     OutOfLine(crate::mach::VmRegion),
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "android"))]
     Mapped(crate::shared_memory::MappedPayload),
 }
 
@@ -32,7 +32,7 @@ impl PayloadBytes {
             Self::Inline(bytes) => bytes,
             #[cfg(target_vendor = "apple")]
             Self::OutOfLine(region) => region.bytes(),
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", target_os = "android"))]
             Self::Mapped(mapping) => mapping.as_ref(),
         }
     }

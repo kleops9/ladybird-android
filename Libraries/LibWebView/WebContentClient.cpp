@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <LibCore/System.h>
 #include <LibWeb/Cookie/ParsedCookie.h>
 #include <LibWebView/Application.h>
 #include <LibWebView/CookieJar.h>
@@ -695,11 +696,20 @@ void WebContentClient::did_allocate_backing_stores(u64 page_id, i32 front_bitmap
 Messages::WebContentClient::RequestWorkerAgentResponse WebContentClient::request_worker_agent(u64 page_id, Web::Bindings::AgentType worker_type)
 {
     if (auto view = view_for_page_id(page_id); view.has_value()) {
-        auto worker_client = MUST(WebView::launch_web_worker_process(worker_type));
-        return worker_client->clone_transport();
+        auto worker_client = WebView::launch_web_worker_process(worker_type);
+        if (!worker_client.is_error())
+            return worker_client.value()->clone_transport();
+
+        // Some platforms (Android) can't start a worker process. Rather than taking the whole browser down, hand back a
+        // socket whose other end is already closed: the page's worker then simply never runs.
+        dbgln("Unable to start a web worker: {}", worker_client.error());
     }
 
-    return IPC::File {};
+    int socket_fds[2] {};
+    if (Core::System::socketpair(AF_LOCAL, SOCK_STREAM, 0, socket_fds).is_error())
+        return IPC::File {};
+    (void)Core::System::close(socket_fds[1]);
+    return IPC::File::adopt_fd(socket_fds[0]);
 }
 
 Optional<ViewImplementation&> WebContentClient::view_for_page_id(u64 page_id, SourceLocation location)

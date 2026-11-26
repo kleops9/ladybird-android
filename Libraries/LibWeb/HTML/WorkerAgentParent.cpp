@@ -42,7 +42,13 @@ void WorkerAgentParent::initialize(JS::Realm& realm)
     //    If spinning the event loop for this can cause other javascript to execute, we're in trouble.
     auto worker_socket_file = Bindings::principal_host_defined_page(realm).client().request_worker_agent(m_agent_type);
 
-    auto worker_socket = MUST(Core::LocalSocket::adopt_fd(worker_socket_file.take_fd()));
+    auto worker_socket_or_error = Core::LocalSocket::adopt_fd(worker_socket_file.take_fd());
+    if (worker_socket_or_error.is_error()) {
+        // The browser couldn't start a worker process; this worker never runs.
+        dbgln("Unable to connect to a web worker: {}", worker_socket_or_error.error());
+        return;
+    }
+    auto worker_socket = worker_socket_or_error.release_value();
     MUST(worker_socket->set_blocking(true));
 
     // TODO: Mach IPC

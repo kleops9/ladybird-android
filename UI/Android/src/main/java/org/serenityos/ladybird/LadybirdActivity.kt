@@ -1932,6 +1932,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
         })
         menuDialog()
             .setView(content)
+            .setNeutralButton("Licenses") { _, _ -> openUrlFromIntent("about:licenses") }
             .setPositiveButton(android.R.string.ok, null)
             .show()
     }

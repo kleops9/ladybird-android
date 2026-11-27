@@ -117,7 +117,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
         val hubDownloads = File(cacheDir, "downloads").apply { mkdirs() }
         if (!initNativeCode(
                 applicationInfo.nativeLibraryDir, resourceDir, filesDir.absolutePath, cacheDir.absolutePath,
-                hubDownloads.absolutePath, File(filesDir, "cacert.pem").absolutePath, "Ladybird", timerService)) {
+                hubDownloads.absolutePath, File(filesDir, "cacert.pem").absolutePath, "Ladybird", timerService, isNight)) {
             Toast.makeText(this, "Ladybird couldn't start its browser process", Toast.LENGTH_LONG).show()
             finish()
             return
@@ -127,6 +127,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
         store = BrowserStore(this)
         downloads = Downloads(this)
         applyNightMode()
+        setDarkMode(isNight)
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
         buildUi()
@@ -181,6 +182,9 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        // Pages follow the app into dark mode and out of it.
+        if (nativeStarted)
+            setDarkMode(isNight)
         // The activity handles uiMode itself so tabs survive a dark mode switch; rebuild the chrome with the new colors.
         activeTab?.view?.let { (it.parent as? ViewGroup)?.removeView(it) }
         menuPopup?.dismiss()
@@ -1663,8 +1667,10 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
 
     private external fun initNativeCode(
         nativeLibraryDir: String, resourceDir: String, dataDir: String, cacheDir: String, downloadsDir: String,
-        certificatesPath: String, tag: String, timerService: TimerExecutorService
+        certificatesPath: String, tag: String, timerService: TimerExecutorService, darkMode: Boolean
     ): Boolean
+
+    private external fun setDarkMode(dark: Boolean)
 
     private external fun disposeNativeCode()
     private external fun execMainEventLoop()

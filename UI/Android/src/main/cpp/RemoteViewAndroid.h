@@ -24,6 +24,9 @@ public:
     static void cache_java_methods(JNIEnv*, jclass);
     static RemoteViewAndroid* find(u64 view_id);
 
+    // Gives the views the dark or the light system theme, and the ones made later too.
+    static void set_websites_prefer_dark(bool);
+
     // Makes a new view in the Hub, or with a view ID, shows one that the Hub made (as for window.open()).
     RemoteViewAndroid(jobject java_instance, WebView::IsPrivate, Optional<u64> existing_view_id, double device_pixel_ratio);
     ~RemoteViewAndroid();

@@ -9,6 +9,7 @@
 #include "AndroidApplication.h"
 #include "HubConnection.h"
 #include "JNIHelpers.h"
+#include "RemoteViewAndroid.h"
 #include <AK/ByteString.h>
 #include <AK/Format.h>
 #include <AK/OwnPtr.h>
@@ -27,6 +28,7 @@ static jmethodID s_open_url_in_new_tab_method;
 static jmethodID s_set_clipboard_text_method;
 static jmethodID s_clipboard_text_method;
 static jmethodID s_download_changed_method;
+static Hub::UIInfo s_ui_info;
 
 static ByteString byte_string_from_jstring(JNIEnv* env, jstring string)
 {
@@ -83,12 +85,13 @@ void AndroidApplication::download_changed(Hub::DownloadState const& download)
 
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_org_serenityos_ladybird_LadybirdActivity_initNativeCode(JNIEnv*, jobject, jstring, jstring, jstring, jstring, jstring, jstring, jstring, jobject);
+extern "C" JNIEXPORT jboolean JNICALL Java_org_serenityos_ladybird_LadybirdActivity_initNativeCode(JNIEnv*, jobject, jstring, jstring, jstring, jstring, jstring, jstring, jstring, jobject, jboolean);
 extern "C" JNIEXPORT void JNICALL Java_org_serenityos_ladybird_LadybirdActivity_execMainEventLoop(JNIEnv*, jobject);
 extern "C" JNIEXPORT void JNICALL Java_org_serenityos_ladybird_LadybirdActivity_disposeNativeCode(JNIEnv*, jobject);
+extern "C" JNIEXPORT void JNICALL Java_org_serenityos_ladybird_LadybirdActivity_setDarkMode(JNIEnv*, jobject, jboolean);
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_org_serenityos_ladybird_LadybirdActivity_initNativeCode(JNIEnv* env, jobject thiz, jstring native_library_dir, jstring resource_dir, jstring data_dir, jstring cache_dir, jstring downloads_dir, jstring certificates_path, jstring tag_name, jobject timer_service)
+Java_org_serenityos_ladybird_LadybirdActivity_initNativeCode(JNIEnv* env, jobject thiz, jstring native_library_dir, jstring resource_dir, jstring data_dir, jstring cache_dir, jstring downloads_dir, jstring certificates_path, jstring tag_name, jobject timer_service, jboolean dark_mode)
 {
     auto native_library_directory = byte_string_from_jstring(env, native_library_dir);
     auto resource_directory = byte_string_from_jstring(env, resource_dir);
@@ -136,17 +139,18 @@ Java_org_serenityos_ladybird_LadybirdActivity_initNativeCode(JNIEnv* env, jobjec
     // The app runs as app_process, so the Ladybird binaries are found from the APK's native library directory instead.
     WebView::platform_init(native_library_directory);
 
-    Hub::UIInfo ui_info {};
-    ui_info.interface_color_scheme = Web::CSS::PreferredColorScheme::Auto;
-    ui_info.supports_private_browsing_windows = true;
-    ui_info.reports_scroll_momentum = true;
-    ui_info.preferred_languages = { "en"_string };
+    s_ui_info = {};
+    s_ui_info.interface_color_scheme = dark_mode ? Web::CSS::PreferredColorScheme::Dark : Web::CSS::PreferredColorScheme::Light;
+    s_ui_info.supports_private_browsing_windows = true;
+    s_ui_info.reports_scroll_momentum = true;
+    s_ui_info.preferred_languages = { "en"_string };
+    Ladybird::RemoteViewAndroid::set_websites_prefer_dark(dark_mode);
 
     Vector<ByteString> hub_arguments;
     if (auto certificates = byte_string_from_jstring(env, certificates_path); !certificates.is_empty())
         hub_arguments.append(ByteString::formatted("--certificate={}", certificates));
 
-    auto connection = Ladybird::HubConnection::launch(native_library_directory, ui_info, move(hub_arguments));
+    auto connection = Ladybird::HubConnection::launch(native_library_directory, s_ui_info, move(hub_arguments));
     if (connection.is_error()) {
         warnln("Unable to start the Hub: {}", connection.error());
         return false;
@@ -170,4 +174,18 @@ Java_org_serenityos_ladybird_LadybirdActivity_disposeNativeCode(JNIEnv* env, job
     s_schedule_event_loop_method = nullptr;
     env->DeleteGlobalRef(s_java_instance);
     delete &Core::EventLoopManager::the();
+}
+
+// Pages follow the app's dark mode, as do the browser's own pages.
+extern "C" JNIEXPORT void JNICALL
+Java_org_serenityos_ladybird_LadybirdActivity_setDarkMode(JNIEnv*, jobject, jboolean dark_mode)
+{
+    if (!s_hub_connection)
+        return;
+    auto color_scheme = dark_mode ? Web::CSS::PreferredColorScheme::Dark : Web::CSS::PreferredColorScheme::Light;
+    if (s_ui_info.interface_color_scheme != color_scheme) {
+        s_ui_info.interface_color_scheme = color_scheme;
+        s_hub_connection->async_ui_info_changed(s_ui_info);
+    }
+    Ladybird::RemoteViewAndroid::set_websites_prefer_dark(dark_mode);
 }

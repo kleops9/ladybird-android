@@ -80,9 +80,12 @@ RemoteViewAndroid* RemoteViewAndroid::find(u64 view_id)
     return s_views.get(view_id).value_or(nullptr);
 }
 
+// Whether pages get the dark system colors and prefers-color-scheme, which follows the app's own dark mode.
+static bool s_websites_prefer_dark { false };
+
 static Core::AnonymousBuffer load_system_theme()
 {
-    auto theme_ini = Core::Resource::load_from_uri("resource://themes/Default.ini"sv);
+    auto theme_ini = Core::Resource::load_from_uri(s_websites_prefer_dark ? "resource://themes/Dark.ini"sv : "resource://themes/Default.ini"sv);
     if (theme_ini.is_error()) {
         warnln("Unable to load the system theme: {}", theme_ini.error());
         return {};
@@ -93,6 +96,21 @@ static Core::AnonymousBuffer load_system_theme()
         return {};
     }
     return theme.release_value();
+}
+
+void RemoteViewAndroid::set_websites_prefer_dark(bool prefer_dark)
+{
+    if (s_websites_prefer_dark == prefer_dark)
+        return;
+    s_websites_prefer_dark = prefer_dark;
+    auto* hub = HubConnection::the_if_connected();
+    if (!hub)
+        return;
+    for (auto view_id : s_views.keys()) {
+        hub->async_view_set_system_theme(view_id, load_system_theme());
+        hub->async_view_set_page_background_color_to_system_canvas(view_id, prefer_dark);
+        hub->async_view_update_interface_color_scheme(view_id);
+    }
 }
 
 RemoteViewAndroid::RemoteViewAndroid(jobject java_instance, WebView::IsPrivate is_private, Optional<u64> existing_view_id, double device_pixel_ratio)
@@ -114,7 +132,7 @@ RemoteViewAndroid::RemoteViewAndroid(jobject java_instance, WebView::IsPrivate i
             .system_theme = load_system_theme(),
             .screen_rects = {},
             .owner_view_id = {},
-            .websites_prefer_dark = false,
+            .websites_prefer_dark = s_websites_prefer_dark,
             .is_tab = true,
         });
         m_view_id = view.view_id();

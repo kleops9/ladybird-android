@@ -14,6 +14,7 @@ add_library(ladybird SHARED
     src/main/cpp/JNIHelpers.cpp
     src/main/cpp/LadybirdActivity.cpp
     src/main/cpp/RemoteViewAndroid.cpp
+    src/main/cpp/SurfacePresenter.cpp
     src/main/cpp/TimerExecutorService.cpp
     src/main/cpp/WebViewImplementationNativeJNI.cpp
 )

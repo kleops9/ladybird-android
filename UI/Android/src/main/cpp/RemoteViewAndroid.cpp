@@ -268,10 +268,10 @@ void RemoteViewAndroid::commit_text(Utf16String const& text)
 
 void RemoteViewAndroid::set_surface(ANativeWindow* window)
 {
+    m_presenter.set_window(window);
     if (m_window)
         ANativeWindow_release(m_window);
     m_window = window;
-    m_window_buffer_size = {};
     present();
 }
 
@@ -466,24 +466,14 @@ bool RemoteViewAndroid::copy_frame_to_rgba(u8* destination, size_t destination_p
     return bitmap != nullptr;
 }
 
-// Writes the frame on display straight into the tab's window buffer.
+// Copies the frame on display out of its backing store, for the presenter to put into the tab's window.
 void RemoteViewAndroid::present()
 {
     if (!m_window || m_presentation_paused || m_viewport_size.is_empty())
         return;
-    auto width = m_viewport_size.width();
-    auto height = m_viewport_size.height();
-
-    if (m_window_buffer_size != m_viewport_size) {
-        ANativeWindow_setBuffersGeometry(m_window, width, height, WINDOW_FORMAT_RGBA_8888);
-        m_window_buffer_size = m_viewport_size;
-    }
-
-    ANativeWindow_Buffer buffer {};
-    if (ANativeWindow_lock(m_window, &buffer, nullptr) != 0)
-        return;
-    copy_frame_to_rgba(static_cast<u8*>(buffer.bits), buffer.stride * 4, min(width, buffer.width), min(height, buffer.height));
-    ANativeWindow_unlockAndPost(m_window);
+    auto* pixels = m_presenter.begin_frame(m_viewport_size);
+    copy_frame_to_rgba(reinterpret_cast<u8*>(pixels), m_viewport_size.width() * sizeof(u32), m_viewport_size.width(), m_viewport_size.height());
+    m_presenter.submit_frame();
 }
 
 // Hub -> Kotlin

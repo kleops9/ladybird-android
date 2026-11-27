@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "SurfacePresenter.h"
 #include <AK/HashMap.h>
 #include <AK/Optional.h>
 #include <Hub/HubClientEndpoint.h>
@@ -109,7 +110,7 @@ private:
     Optional<u64> m_backing_stores_page_id;
 
     ANativeWindow* m_window { nullptr };
-    Gfx::IntSize m_window_buffer_size;
+    SurfacePresenter m_presenter;
     Gfx::IntSize m_viewport_size;
     double m_device_pixel_ratio { 1.0 };
     bool m_presentation_paused { false };

@@ -21,6 +21,7 @@ import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import android.widget.OverScroller
 import kotlin.math.roundToInt
 
 /** Receives page events for one WebView. Implemented by Tab. */
@@ -85,6 +86,7 @@ class WebView(context: Context) : TextureView(context), TextureView.SurfaceTextu
     }
 
     fun dispose() {
+        stopMomentum()
         if (impl.isInitialized)
             impl.setSurface(null)
         impl.dispose()
@@ -181,22 +183,71 @@ class WebView(context: Context) : TextureView(context), TextureView.SurfaceTextu
     private var isScrolling = false
     /** Set while a touch scroll gesture is open in the Compositor, which it ends when the finger lifts. */
     private var scrollGestureActive = false
-    /** Set after a scroll gesture ended, as the Compositor may still be flinging it. */
-    private var flingMayBeRunning = false
 
-    /** Touch scrolls go to the Compositor as gesture steps in CSS pixels, and it flings them on the display's clock. */
+    // A flick keeps scrolling with Android's own fling, as it does in Chrome, which the Compositor scrolls by as the
+    // momentum of the gesture.
+    private val scroller = OverScroller(context)
+    private var lastFlingX = 0
+    private var lastFlingY = 0
+    private var momentumRunning = false
+    private var momentumX = 0f
+    private var momentumY = 0f
+    private var momentumRawX = 0f
+    private var momentumRawY = 0f
+
+    /** Touch scrolls go to the Compositor as the steps of a gesture, in CSS pixels. */
     private fun sendScrollGestureStep(dx: Float, dy: Float, event: MotionEvent) {
         val scale = density * zoomLevel
         scrollGestureActive = true
-        impl.scrollGesture(false, event.x, event.y, event.rawX, event.rawY, dx / scale, dy / scale)
+        impl.scrollGesture(WebViewImplementation.SCROLL_ONGOING, event.x, event.y, event.rawX, event.rawY, dx / scale, dy / scale)
     }
 
     private fun endScrollGesture(event: MotionEvent) {
         if (!scrollGestureActive)
             return
         scrollGestureActive = false
-        flingMayBeRunning = true
-        impl.scrollGesture(true, event.x, event.y, event.rawX, event.rawY, 0f, 0f)
+        impl.scrollGesture(WebViewImplementation.SCROLL_ENDED, event.x, event.y, event.rawX, event.rawY, 0f, 0f)
+    }
+
+    private fun startMomentum(velocityX: Float, velocityY: Float, event: MotionEvent) {
+        lastFlingX = 0
+        lastFlingY = 0
+        momentumX = event.x
+        momentumY = event.y
+        momentumRawX = event.rawX
+        momentumRawY = event.rawY
+        scroller.fling(0, 0, -velocityX.roundToInt(), -velocityY.roundToInt(), Int.MIN_VALUE, Int.MAX_VALUE, Int.MIN_VALUE, Int.MAX_VALUE)
+        momentumRunning = true
+        postOnAnimation(momentumRunnable)
+    }
+
+    private fun stopMomentum() {
+        if (!momentumRunning)
+            return
+        momentumRunning = false
+        scroller.forceFinished(true)
+        if (impl.isInitialized)
+            impl.scrollGesture(WebViewImplementation.SCROLL_ENDED, momentumX, momentumY, momentumRawX, momentumRawY, 0f, 0f)
+    }
+
+    private val momentumRunnable = object : Runnable {
+        override fun run() {
+            if (!momentumRunning || !impl.isInitialized)
+                return
+            if (!scroller.computeScrollOffset()) {
+                stopMomentum()
+                return
+            }
+            val dx = scroller.currX - lastFlingX
+            val dy = scroller.currY - lastFlingY
+            lastFlingX = scroller.currX
+            lastFlingY = scroller.currY
+            if (dx != 0 || dy != 0) {
+                val scale = density * zoomLevel
+                impl.scrollGesture(WebViewImplementation.SCROLL_MOMENTUM, momentumX, momentumY, momentumRawX, momentumRawY, dx / scale, dy / scale)
+            }
+            postOnAnimation(this)
+        }
     }
 
     /** Wheel deltas are in CSS pixels; finger movement is in device pixels. */
@@ -225,11 +276,8 @@ class WebView(context: Context) : TextureView(context), TextureView.SurfaceTextu
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(e: MotionEvent): Boolean {
             isScrolling = false
-            // A finger on the page stops a fling, as a step of a new gesture does in the Compositor.
-            if (flingMayBeRunning) {
-                flingMayBeRunning = false
-                sendScrollGestureStep(0f, 0f, e)
-            }
+            // A finger on the page stops a fling.
+            stopMomentum()
             return true
         }
 
@@ -248,8 +296,14 @@ class WebView(context: Context) : TextureView(context), TextureView.SurfaceTextu
             return true
         }
 
-        // The Compositor flings when the gesture ends.
-        override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float) = true
+        // The fingers lift with a fling: the gesture ends, and its momentum follows.
+        override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+            if (!scrollGestureActive)
+                return false
+            endScrollGesture(e2)
+            startMomentum(velocityX, velocityY, e2)
+            return true
+        }
 
         override fun onLongPress(e: MotionEvent) {
             if (isScrolling)
@@ -303,6 +357,7 @@ class WebView(context: Context) : TextureView(context), TextureView.SurfaceTextu
             MotionEvent.ACTION_POINTER_DOWN -> if (!touchIsMultiFinger) {
                 touchIsMultiFinger = true
                 endScrollGesture(event)
+                stopMomentum()
                 // Stop the single-finger gesture in progress (pending long press, scroll).
                 val cancel = MotionEvent.obtain(event).apply { action = MotionEvent.ACTION_CANCEL }
                 gestureDetector.onTouchEvent(cancel)

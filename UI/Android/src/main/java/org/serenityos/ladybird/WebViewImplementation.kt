@@ -63,8 +63,9 @@ class WebViewImplementation(private val view: WebView) {
     fun drawIntoBitmap(bitmap: Bitmap) = nativeDrawIntoBitmap(nativeInstance, bitmap)
     fun setSurface(surface: android.view.Surface?) = nativeSetSurface(nativeInstance, surface)
     fun setPresentationPaused(paused: Boolean) = nativeSetPresentationPaused(nativeInstance, paused)
-    fun scrollGesture(ended: Boolean, x: Float, y: Float, rawX: Float, rawY: Float, deltaX: Float, deltaY: Float) =
-        nativeScrollGesture(nativeInstance, ended, x, y, rawX, rawY, deltaX, deltaY)
+    /** A step of a touch scroll gesture, in CSS pixels, with one of the SCROLL_* phases. */
+    fun scrollGesture(phase: Int, x: Float, y: Float, rawX: Float, rawY: Float, deltaX: Float, deltaY: Float) =
+        nativeScrollGesture(nativeInstance, phase, x, y, rawX, rawY, deltaX, deltaY)
         fun setViewportGeometry(w: Int, h: Int) = nativeSetViewportGeometry(nativeInstance, w, h)
     fun setDevicePixelRatio(ratio: Float) = nativeSetDevicePixelRatio(nativeInstance, ratio)
     fun setHasFocus(focus: Boolean) = nativeSetHasFocus(nativeInstance, focus)
@@ -180,7 +181,7 @@ class WebViewImplementation(private val view: WebView) {
     private external fun nativeStopLoading(instance: Long)
     private external fun nativeTraverseHistory(instance: Long, delta: Int)
     private external fun nativeZoom(instance: Long, direction: Int): Float
-    private external fun nativeScrollGesture(instance: Long, ended: Boolean, x: Float, y: Float, rawX: Float, rawY: Float, deltaX: Float, deltaY: Float)
+    private external fun nativeScrollGesture(instance: Long, phase: Int, x: Float, y: Float, rawX: Float, rawY: Float, deltaX: Float, deltaY: Float)
     private external fun nativeMouseEvent(instance: Long, type: Int, x: Float, y: Float, rawX: Float, rawY: Float, button: Int, wheelX: Int, wheelY: Int)
     private external fun nativeKeyEvent(instance: Long, down: Boolean, key: Int, modifiers: Int, codePoint: Int)
     private external fun nativeAlertClosed(instance: Long)
@@ -200,6 +201,11 @@ class WebViewImplementation(private val view: WebView) {
         const val MOUSE_MOVE = 2
         const val MOUSE_WHEEL = 3
         const val MOUSE_DOUBLE_CLICK = 4
+
+        // Scroll gesture phases, mirrored in WebViewImplementationNativeJNI.cpp.
+        const val SCROLL_ONGOING = 0
+        const val SCROLL_ENDED = 1
+        const val SCROLL_MOMENTUM = 2
 
         const val BUTTON_NONE = 0
         const val BUTTON_PRIMARY = 1

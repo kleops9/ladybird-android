@@ -238,10 +238,16 @@ LADYBIRD_JNI(void, nativePinch, JNIEnv*, jobject, jlong instance, jfloat focus_x
     view_from(instance).pinch(focus_x, focus_y, scale_delta, continues_gesture);
 }
 
-// A step of a touch scroll, or with `ended`, the lift of the finger, after which the Compositor flings if it was a flick.
-LADYBIRD_JNI(void, nativeScrollGesture, JNIEnv*, jobject, jlong instance, jboolean ended, jfloat x, jfloat y, jfloat raw_x, jfloat raw_y, jfloat delta_x, jfloat delta_y)
+// A step of a touch scroll gesture: the finger moving, the finger lifting, or the momentum of a flick. Phases are mirrored
+// in WebViewImplementation.kt.
+LADYBIRD_JNI(void, nativeScrollGesture, JNIEnv*, jobject, jlong instance, jint phase, jfloat x, jfloat y, jfloat raw_x, jfloat raw_y, jfloat delta_x, jfloat delta_y)
 {
-    view_from(instance).scroll_gesture(ended ? Web::ScrollGesturePhase::Ended : Web::ScrollGesturePhase::Ongoing, x, y, raw_x, raw_y, delta_x, delta_y);
+    auto gesture_phase = Web::ScrollGesturePhase::Ongoing;
+    if (phase == 1)
+        gesture_phase = Web::ScrollGesturePhase::Ended;
+    else if (phase == 2)
+        gesture_phase = Web::ScrollGesturePhase::Momentum;
+    view_from(instance).scroll_gesture(gesture_phase, x, y, raw_x, raw_y, delta_x, delta_y);
 }
 
 // Mouse event types, mirrored in WebViewImplementation.kt.

@@ -8,6 +8,12 @@ engine based on web standards.
 > [here](https://github.com/kleops9/ladybird-android/issues), not to the Ladybird project. Like Ladybird itself, it's
 > alpha software: expect sites that don't work, and crashes.
 
+## About this project
+
+Ladybird for Android is a hobby project, made in spare time by [kleops9](https://github.com/kleops9) together with
+[Claude Code](https://claude.com/claude-code), Anthropic's AI coding assistant. There's no company behind it and no
+guarantee of support, though reports and suggestions are welcome.
+
 ## Trying it
 
 Download the APK of the [latest release](https://github.com/kleops9/ladybird-android/releases) on your phone, and open

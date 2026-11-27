@@ -28,7 +28,8 @@ android {
     ndkVersion = "29.0.13599879"
 
     defaultConfig {
-        applicationId = "org.serenityos.ladybird"
+        // The app's own ID, apart from the Kotlin package that the code (and its JNI names) keep from upstream's port.
+        applicationId = "org.unllock.ladybird"
         minSdk = 30
         targetSdk = 35
         versionCode = appVersionCode

@@ -61,7 +61,7 @@ the `android` branch.
 
 - `adb logcat -s Ladybird Serenity` shows what the native code logs.
 - The helper processes write their output to the app's cache directory:
-  `adb shell run-as org.serenityos.ladybird cat cache/ladybird.log` (debug builds only).
+  `adb shell run-as org.unllock.ladybird cat cache/ladybird.log` (debug builds only).
 - `adb logcat -s LadybirdLoad` shows how long pages take to load (debug builds only).
 - Crashes leave tombstones, which `llvm-symbolizer` from the NDK symbolizes against the libraries in
   `Build/android-arm64-v8a/lib` and `UI/Android/build/helpers/arm64-v8a`.

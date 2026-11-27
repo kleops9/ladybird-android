@@ -29,7 +29,7 @@ class SmokeTest {
     fun useAppContext() {
         // Context of the app under test.
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("org.serenityos.ladybird", appContext.packageName)
+        assertEquals("org.unllock.ladybird", appContext.packageName)
     }
 
     @Test

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Ladybird</string>
+    <string name="app_name">Ladybird for Android</string>
     <string name="tagline">A truly independent web browser</string>
     <string name="url_edit_default">Search or type a web address</string>
     <string name="new_tab">New tab</string>

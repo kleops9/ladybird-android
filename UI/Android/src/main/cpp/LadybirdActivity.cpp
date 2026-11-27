@@ -12,6 +12,8 @@
 #include "RemoteViewAndroid.h"
 #include <AK/ByteString.h>
 #include <AK/Format.h>
+#include <AK/JsonObject.h>
+#include <AK/JsonValue.h>
 #include <AK/OwnPtr.h>
 #include <LibCore/EventLoop.h>
 #include <LibCore/System.h>
@@ -29,6 +31,18 @@ static jmethodID s_set_clipboard_text_method;
 static jmethodID s_clipboard_text_method;
 static jmethodID s_download_changed_method;
 static Hub::UIInfo s_ui_info;
+static u64 s_next_settings_change_id { 1 };
+
+// In dark mode, the engine darkens the pages that have no dark color scheme of their own, as Chrome's auto dark mode
+// does. Pages that list a dark color scheme keep their own colors.
+static void set_force_dark(bool enabled)
+{
+    JsonObject content;
+    content.set("enableForceDark"sv, enabled);
+    JsonObject changes;
+    changes.set("content"sv, move(content));
+    s_hub_connection->async_update_settings(s_next_settings_change_id++, JsonValue { changes }.serialized().to_byte_string());
+}
 
 static ByteString byte_string_from_jstring(JNIEnv* env, jstring string)
 {
@@ -156,6 +170,7 @@ Java_org_serenityos_ladybird_LadybirdActivity_initNativeCode(JNIEnv* env, jobjec
         return false;
     }
     s_hub_connection = connection.release_value();
+    set_force_dark(dark_mode);
     return true;
 }
 
@@ -186,6 +201,7 @@ Java_org_serenityos_ladybird_LadybirdActivity_setDarkMode(JNIEnv*, jobject, jboo
     if (s_ui_info.interface_color_scheme != color_scheme) {
         s_ui_info.interface_color_scheme = color_scheme;
         s_hub_connection->async_ui_info_changed(s_ui_info);
+        set_force_dark(dark_mode);
     }
     Ladybird::RemoteViewAndroid::set_websites_prefer_dark(dark_mode);
 }

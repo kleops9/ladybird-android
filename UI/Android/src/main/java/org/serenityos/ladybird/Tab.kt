@@ -26,6 +26,8 @@ interface TabHost {
     fun onTabDownload(tab: Tab, url: String, contentDisposition: String, mimeType: String)
     fun onTabFindResult(tab: Tab, currentIndex: Int, totalMatches: Int)
     fun configureNewView(tab: Tab, view: WebView)
+    fun onTabPullToRefresh(tab: Tab, progress: Float)
+    fun onTabPullToRefreshEnd(tab: Tab, refresh: Boolean)
 }
 
 /**
@@ -182,6 +184,10 @@ class Tab(
         canGoForward = forward
         host.onTabStateChanged(this)
     }
+
+    override fun onPullToRefresh(progress: Float) = host.onTabPullToRefresh(this, progress)
+
+    override fun onPullToRefreshEnd(refresh: Boolean) = host.onTabPullToRefreshEnd(this, refresh)
 
     override fun onThemeColorChange(color: Int) {
         // Pages without <meta name="theme-color"> report a transparent color.

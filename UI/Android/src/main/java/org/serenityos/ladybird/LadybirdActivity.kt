@@ -57,6 +57,7 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.CircularProgressDrawable
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.progressindicator.LinearProgressIndicator
@@ -253,6 +254,10 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
         setContentView(binding.root)
         isEditingUrl = false
         isFinding = false
+        // The pull to refresh indicator belonged to the views before.
+        pullIndicator = null
+        pullSpinner = null
+        pullRefreshingTab = null
 
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
@@ -789,7 +794,93 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
             view.impl.setVisible(true)
     }
 
+    // --- Pull to refresh ---
+
+    private var pullIndicator: ImageView? = null
+    private var pullSpinner: CircularProgressDrawable? = null
+    /** The tab that a pull is refreshing, until its page has loaded. */
+    private var pullRefreshingTab: Tab? = null
+    private var pullRefreshSawLoading = false
+    private val hidePullIndicatorRunnable = Runnable { hidePullIndicator() }
+
+    private fun pullIndicatorView(): ImageView {
+        pullIndicator?.let { return it }
+        val spinner = CircularProgressDrawable(this).apply {
+            setStyle(CircularProgressDrawable.DEFAULT)
+            setColorSchemeColors(getColor(R.color.accent))
+        }
+        val indicator = ImageView(this).apply {
+            setImageDrawable(spinner)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(getColor(R.color.toolbar_bg))
+            }
+            elevation = dpf(6f)
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            isVisible = false
+        }
+        binding.content.addView(indicator, FrameLayout.LayoutParams(dp(40), dp(40), Gravity.TOP or Gravity.CENTER_HORIZONTAL))
+        pullIndicator = indicator
+        pullSpinner = spinner
+        return indicator
+    }
+
+    override fun onTabPullToRefresh(tab: Tab, progress: Float) {
+        if (tab !== activeTab || pullRefreshingTab != null)
+            return
+        val indicator = pullIndicatorView()
+        val spinner = pullSpinner!!
+        indicator.animate().cancel()
+        indicator.isVisible = true
+        // The indicator comes down with the finger, more and more slowly past the distance that refreshes.
+        val pulled = if (progress <= 1f) progress else 1f + (1f - 1f / progress) * 0.5f
+        indicator.translationY = -dpf(40f) + pulled * dpf(104f)
+        indicator.alpha = (0.3f + progress).coerceAtMost(1f)
+        spinner.stop()
+        spinner.arrowEnabled = true
+        spinner.setArrowScale(progress.coerceAtMost(1f))
+        spinner.setStartEndTrim(0f, 0.8f * progress.coerceAtMost(1f))
+        spinner.progressRotation = 0.25f * progress
+        indicator.rotation = 0f
+    }
+
+    override fun onTabPullToRefreshEnd(tab: Tab, refresh: Boolean) {
+        if (tab !== activeTab || pullRefreshingTab != null)
+            return
+        if (!refresh) {
+            hidePullIndicator()
+            return
+        }
+        val indicator = pullIndicatorView()
+        val spinner = pullSpinner!!
+        indicator.animate().translationY(dpf(24f)).alpha(1f).setDuration(150).start()
+        spinner.arrowEnabled = false
+        spinner.start()
+        pullRefreshingTab = tab
+        pullRefreshSawLoading = false
+        tab.view?.impl?.reload()
+        indicator.removeCallbacks(hidePullIndicatorRunnable)
+        indicator.postDelayed(hidePullIndicatorRunnable, 15_000)
+    }
+
+    private fun hidePullIndicator() {
+        pullRefreshingTab = null
+        val indicator = pullIndicator ?: return
+        indicator.removeCallbacks(hidePullIndicatorRunnable)
+        indicator.animate().translationY(-dpf(40f)).alpha(0f).setDuration(200).withEndAction {
+            indicator.isVisible = false
+            pullSpinner?.stop()
+        }.start()
+    }
+
     override fun onTabStateChanged(tab: Tab) {
+        // The indicator of a pull to refresh spins until the page has started loading again and finished.
+        if (tab === pullRefreshingTab) {
+            if (tab.isLoading)
+                pullRefreshSawLoading = true
+            else if (pullRefreshSawLoading)
+                hidePullIndicator()
+        }
         if (tab === activeTab) {
             if (tab.view != null && (binding.ntp.root.isVisible || binding.incognitoNtp.root.isVisible)) {
                 showActiveTab()

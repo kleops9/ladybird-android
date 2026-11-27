@@ -30,6 +30,7 @@ static struct {
     jmethodID on_favicon_change;
     jmethodID on_navigation_buttons_state_changed;
     jmethodID on_theme_color_change;
+    jmethodID on_scrolled_to_top_change;
     jmethodID on_focused_editable_change;
     jmethodID on_new_web_view;
     jmethodID on_close;
@@ -62,6 +63,7 @@ void RemoteViewAndroid::cache_java_methods(JNIEnv* env, jclass clazz)
     s_methods.on_favicon_change = get("onFaviconChange", "([III)V");
     s_methods.on_navigation_buttons_state_changed = get("onNavigationButtonsStateChanged", "(ZZ)V");
     s_methods.on_theme_color_change = get("onThemeColorChange", "(I)V");
+    s_methods.on_scrolled_to_top_change = get("onScrolledToTopChange", "(Z)V");
     s_methods.on_focused_editable_change = get("onFocusedEditableChange", "(Z)V");
     s_methods.on_new_web_view = get("onNewWebView", "(ZJ)Ljava/lang/String;");
     s_methods.on_close = get("onClose", "()V");
@@ -530,6 +532,11 @@ void RemoteViewAndroid::did_change_favicon(Optional<Gfx::ShareableBitmap> const&
     env.get()->ReleaseIntArrayElements(pixels, data, 0);
     env.get()->CallVoidMethod(m_java_instance, s_methods.on_favicon_change, pixels, width, height);
     env.get()->DeleteLocalRef(pixels);
+}
+
+void RemoteViewAndroid::did_change_scrolled_to_top(bool scrolled_to_top)
+{
+    call_java(s_methods.on_scrolled_to_top_change, static_cast<jboolean>(scrolled_to_top));
 }
 
 void RemoteViewAndroid::did_change_theme_color(Gfx::Color color)

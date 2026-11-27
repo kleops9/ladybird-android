@@ -58,6 +58,7 @@ private:
     virtual void view_loading_state_change(u64, bool) override;
     virtual void view_favicon_change(u64, Optional<Gfx::ShareableBitmap>) override;
     virtual void view_theme_color_change(u64, Gfx::Color) override;
+    virtual void view_scrolled_to_top_change(u64, bool) override;
     virtual void view_input_method_state_change(u64) override;
     virtual void view_open_new_view(u64, u64, Hub::ViewState, Web::HTML::ActivateTab, Web::HTML::WebViewHints) override;
     virtual void view_activate_tab(u64) override;

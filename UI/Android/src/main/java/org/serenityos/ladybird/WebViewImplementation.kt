@@ -120,6 +120,10 @@ class WebViewImplementation(private val view: WebView) {
         view.client?.onThemeColorChange(color)
     }
 
+    fun onScrolledToTopChange(scrolledToTop: Boolean) {
+        view.isScrolledToTop = scrolledToTop
+    }
+
     fun onFocusedEditableChange(editable: Boolean) {
         view.onFocusedEditableChange(editable)
     }

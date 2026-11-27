@@ -33,6 +33,10 @@ interface WebViewClient {
     fun onFaviconChange(favicon: Bitmap)
     fun onNavigationButtonsStateChanged(back: Boolean, forward: Boolean)
     fun onThemeColorChange(color: Int)
+    /** The finger pulls down a page that is scrolled to its top, by this share of the distance that refreshes it. */
+    fun onPullToRefresh(progress: Float)
+    /** The pull ended, refreshing the page if it went far enough. */
+    fun onPullToRefreshEnd(refresh: Boolean)
     fun onNewWebView(activate: Boolean, pageIndex: Long): String?
     fun onCloseRequested()
     fun onActivateRequested()
@@ -65,6 +69,9 @@ class WebView(context: Context) : TextureView(context), TextureView.SurfaceTextu
 
     var isFocusedEditable = false
         private set
+
+    /** Whether the page is scrolled to its top, as the engine reports it. A pull down from there refreshes the page. */
+    var isScrolledToTop = true
 
     /** Incognito pages ask the keyboard not to learn from what is typed. */
     var isIncognito = false
@@ -184,6 +191,18 @@ class WebView(context: Context) : TextureView(context), TextureView.SurfaceTextu
     /** Set while a touch scroll gesture is open in the Compositor, which it ends when the finger lifts. */
     private var scrollGestureActive = false
 
+    /** Set while the finger pulls down a page at its top: the rest of the gesture pulls to refresh, and scrolls nothing. */
+    private var pulling = false
+    private var pullDistance = 0f
+    private val pullThreshold get() = PULL_TO_REFRESH_DISTANCE_DP * density
+
+    private fun endPull(refresh: Boolean) {
+        if (!pulling)
+            return
+        pulling = false
+        client?.onPullToRefreshEnd(refresh)
+    }
+
     // A flick keeps scrolling with Android's own fling, as it does in Chrome, which the Compositor scrolls by as the
     // momentum of the gesture.
     private val scroller = OverScroller(context)
@@ -292,6 +311,16 @@ class WebView(context: Context) : TextureView(context), TextureView.SurfaceTextu
 
         override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
             isScrolling = true
+            // A gesture that starts by pulling down a page at its top pulls to refresh. One that scrolled first doesn't.
+            if (!pulling && !scrollGestureActive && isScrolledToTop && zoomLevel <= 1.01f && distanceY < 0 && -distanceY >= kotlin.math.abs(distanceX)) {
+                pulling = true
+                pullDistance = 0f
+            }
+            if (pulling) {
+                pullDistance = (pullDistance - distanceY).coerceAtLeast(0f)
+                client?.onPullToRefresh(pullDistance / pullThreshold)
+                return true
+            }
             sendScrollGestureStep(distanceX, distanceY, e2)
             return true
         }
@@ -358,6 +387,7 @@ class WebView(context: Context) : TextureView(context), TextureView.SurfaceTextu
                 touchIsMultiFinger = true
                 endScrollGesture(event)
                 stopMomentum()
+                endPull(false)
                 // Stop the single-finger gesture in progress (pending long press, scroll).
                 val cancel = MotionEvent.obtain(event).apply { action = MotionEvent.ACTION_CANCEL }
                 gestureDetector.onTouchEvent(cancel)
@@ -367,8 +397,10 @@ class WebView(context: Context) : TextureView(context), TextureView.SurfaceTextu
         if (touchIsMultiFinger)
             return true
         val handled = gestureDetector.onTouchEvent(event)
-        if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL)
+        if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
             endScrollGesture(event)
+            endPull(event.actionMasked == MotionEvent.ACTION_UP && pullDistance >= pullThreshold)
+        }
         return handled || super.onTouchEvent(event)
     }
 
@@ -529,6 +561,8 @@ class WebView(context: Context) : TextureView(context), TextureView.SurfaceTextu
     }
 
     companion object {
+        /** How far the finger pulls a page down to refresh it. */
+        const val PULL_TO_REFRESH_DISTANCE_DP = 96f
 
         // Web::UIEvents::KeyCode values (Windows virtual key codes).
         const val KEY_BACKSPACE = 0x08

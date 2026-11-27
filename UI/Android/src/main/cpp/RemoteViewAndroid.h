@@ -83,6 +83,7 @@ public:
     void did_change_url(URL::URL const&);
     void did_change_favicon(Optional<Gfx::ShareableBitmap> const&);
     void did_change_theme_color(Gfx::Color);
+    void did_change_scrolled_to_top(bool);
     void did_change_input_method_state();
     String did_request_new_view(u64 new_view_id, Web::HTML::ActivateTab);
     void did_request_activation();

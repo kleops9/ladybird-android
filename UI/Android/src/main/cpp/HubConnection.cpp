@@ -237,6 +237,11 @@ void HubConnection::view_theme_color_change(u64 view_id, Gfx::Color color)
     FOR_VIEW(view_id, did_change_theme_color(color));
 }
 
+void HubConnection::view_scrolled_to_top_change(u64 view_id, bool scrolled_to_top)
+{
+    FOR_VIEW(view_id, did_change_scrolled_to_top(scrolled_to_top));
+}
+
 void HubConnection::view_input_method_state_change(u64 view_id)
 {
     // The new state arrives in a view_state_changed() right before this.

@@ -113,7 +113,7 @@ void RemoteViewAndroid::set_websites_prefer_dark(bool prefer_dark)
     }
 }
 
-RemoteViewAndroid::RemoteViewAndroid(jobject java_instance, WebView::IsPrivate is_private, Optional<u64> existing_view_id, double device_pixel_ratio)
+RemoteViewAndroid::RemoteViewAndroid(jobject java_instance, WebView::IsPrivate is_private, Optional<u64> existing_view_id, double device_pixel_ratio, double refresh_rate)
     : m_java_instance(java_instance)
     , m_is_private(is_private)
     , m_device_pixel_ratio(device_pixel_ratio)
@@ -126,7 +126,7 @@ RemoteViewAndroid::RemoteViewAndroid(jobject java_instance, WebView::IsPrivate i
         auto view = hub.create_view({
             .is_private = is_private,
             .device_pixel_ratio = device_pixel_ratio,
-            .maximum_frames_per_second = 60,
+            .maximum_frames_per_second = refresh_rate,
             .display_id = {},
             .screen_shows_high_dynamic_range = false,
             .system_theme = load_system_theme(),
@@ -344,6 +344,22 @@ void RemoteViewAndroid::mouse_event(Web::MouseEvent::Type type, float x, float y
         } };
     }
 
+    HubConnection::the().async_view_enqueue_mouse_event(m_view_id, m_next_input_id++, event);
+}
+
+void RemoteViewAndroid::scroll_gesture(Web::ScrollGesturePhase phase, float x, float y, float screen_x, float screen_y, double delta_x, double delta_y)
+{
+    Web::MouseEvent event {
+        .type = Web::MouseEvent::Type::MouseWheel,
+        .position = Gfx::IntPoint { static_cast<int>(x), static_cast<int>(y) }.to_type<Web::DevicePixels>(),
+        .screen_position = Gfx::IntPoint { static_cast<int>(screen_x), static_cast<int>(screen_y) }.to_type<Web::DevicePixels>(),
+        .wheel_delta_x = delta_x,
+        .wheel_delta_y = delta_y,
+        .wheel_tick_120ths_x = Web::wheel_tick_120ths_from_pixel_delta(delta_x, Web::WheelDeltaPrecision::Precise),
+        .wheel_tick_120ths_y = Web::wheel_tick_120ths_from_pixel_delta(delta_y, Web::WheelDeltaPrecision::Precise),
+        .wheel_delta_precision = Web::WheelDeltaPrecision::Precise,
+        .scroll_gesture_phase = phase,
+    };
     HubConnection::the().async_view_enqueue_mouse_event(m_view_id, m_next_input_id++, event);
 }
 

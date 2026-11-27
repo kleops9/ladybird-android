@@ -26,7 +26,16 @@ class WebViewImplementation(private val view: WebView) {
      * with window.open().
      */
     fun initialize(isPrivate: Boolean, existingViewId: Long = -1) {
-        nativeInstance = nativeObjectInit(isPrivate, existingViewId, view.resources.displayMetrics.density)
+        nativeInstance = nativeObjectInit(isPrivate, existingViewId, view.resources.displayMetrics.density, displayRefreshRate())
+    }
+
+    /** The fastest the display refreshes at its resolution. The Compositor follows the display's actual refreshes. */
+    private fun displayRefreshRate(): Float {
+        val display = view.context.display ?: return 60f
+        val mode = display.mode
+        return display.supportedModes
+            .filter { it.physicalWidth == mode.physicalWidth && it.physicalHeight == mode.physicalHeight }
+            .maxOfOrNull { it.refreshRate } ?: display.refreshRate
     }
 
     fun dispose() {
@@ -54,7 +63,9 @@ class WebViewImplementation(private val view: WebView) {
     fun drawIntoBitmap(bitmap: Bitmap) = nativeDrawIntoBitmap(nativeInstance, bitmap)
     fun setSurface(surface: android.view.Surface?) = nativeSetSurface(nativeInstance, surface)
     fun setPresentationPaused(paused: Boolean) = nativeSetPresentationPaused(nativeInstance, paused)
-    fun setViewportGeometry(w: Int, h: Int) = nativeSetViewportGeometry(nativeInstance, w, h)
+    fun scrollGesture(ended: Boolean, x: Float, y: Float, rawX: Float, rawY: Float, deltaX: Float, deltaY: Float) =
+        nativeScrollGesture(nativeInstance, ended, x, y, rawX, rawY, deltaX, deltaY)
+        fun setViewportGeometry(w: Int, h: Int) = nativeSetViewportGeometry(nativeInstance, w, h)
     fun setDevicePixelRatio(ratio: Float) = nativeSetDevicePixelRatio(nativeInstance, ratio)
     fun setHasFocus(focus: Boolean) = nativeSetHasFocus(nativeInstance, focus)
     fun setVisible(visible: Boolean) = nativeSetVisible(nativeInstance, visible)
@@ -153,7 +164,7 @@ class WebViewImplementation(private val view: WebView) {
     }
 
     // Functions implemented in native code
-    private external fun nativeObjectInit(isPrivate: Boolean, existingViewId: Long, devicePixelRatio: Float): Long
+    private external fun nativeObjectInit(isPrivate: Boolean, existingViewId: Long, devicePixelRatio: Float, refreshRate: Float): Long
     private external fun nativeObjectDispose(instance: Long)
     private external fun nativeViewId(instance: Long): Long
 
@@ -169,6 +180,7 @@ class WebViewImplementation(private val view: WebView) {
     private external fun nativeStopLoading(instance: Long)
     private external fun nativeTraverseHistory(instance: Long, delta: Int)
     private external fun nativeZoom(instance: Long, direction: Int): Float
+    private external fun nativeScrollGesture(instance: Long, ended: Boolean, x: Float, y: Float, rawX: Float, rawY: Float, deltaX: Float, deltaY: Float)
     private external fun nativeMouseEvent(instance: Long, type: Int, x: Float, y: Float, rawX: Float, rawY: Float, button: Int, wheelX: Int, wheelY: Int)
     private external fun nativeKeyEvent(instance: Long, down: Boolean, key: Int, modifiers: Int, codePoint: Int)
     private external fun nativeAlertClosed(instance: Long)

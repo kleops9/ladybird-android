@@ -28,7 +28,7 @@ public:
     static void set_websites_prefer_dark(bool);
 
     // Makes a new view in the Hub, or with a view ID, shows one that the Hub made (as for window.open()).
-    RemoteViewAndroid(jobject java_instance, WebView::IsPrivate, Optional<u64> existing_view_id, double device_pixel_ratio);
+    RemoteViewAndroid(jobject java_instance, WebView::IsPrivate, Optional<u64> existing_view_id, double device_pixel_ratio, double refresh_rate);
     ~RemoteViewAndroid();
 
     u64 view_id() const { return m_view_id; }
@@ -59,6 +59,7 @@ public:
     void set_visible(bool);
 
     void mouse_event(Web::MouseEvent::Type, float x, float y, float screen_x, float screen_y, Web::UIEvents::MouseButton, int wheel_delta_x, int wheel_delta_y, bool is_touch, int click_count);
+    void scroll_gesture(Web::ScrollGesturePhase, float x, float y, float screen_x, float screen_y, double delta_x, double delta_y);
     void key_event(Web::KeyEvent::Type, Web::UIEvents::KeyCode, Web::UIEvents::KeyModifier, u32 code_point);
 
     // Copies the frame on display into RGBA memory, such as an Android bitmap. Returns false if there is none yet.

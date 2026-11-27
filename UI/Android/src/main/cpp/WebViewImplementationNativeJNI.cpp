@@ -150,13 +150,13 @@ LADYBIRD_JNI_STATIC(void, nativeClearPrivateBrowsingData, JNIEnv*, jobject)
     HubConnection::the().async_reset_private_browsing_session();
 }
 
-LADYBIRD_JNI(jlong, nativeObjectInit, JNIEnv* env, jobject thiz, jboolean is_private, jlong existing_view_id, jfloat device_pixel_ratio)
+LADYBIRD_JNI(jlong, nativeObjectInit, JNIEnv* env, jobject thiz, jboolean is_private, jlong existing_view_id, jfloat device_pixel_ratio, jfloat refresh_rate)
 {
     auto ref = env->NewGlobalRef(thiz);
     Optional<u64> view_id;
     if (existing_view_id >= 0)
         view_id = static_cast<u64>(existing_view_id);
-    auto* view = new RemoteViewAndroid(ref, is_private ? WebView::IsPrivate::Yes : WebView::IsPrivate::No, view_id, device_pixel_ratio);
+    auto* view = new RemoteViewAndroid(ref, is_private ? WebView::IsPrivate::Yes : WebView::IsPrivate::No, view_id, device_pixel_ratio, refresh_rate);
     return reinterpret_cast<jlong>(view);
 }
 
@@ -236,6 +236,12 @@ LADYBIRD_JNI(jfloat, nativeZoom, JNIEnv*, jobject, jlong instance, jint directio
 LADYBIRD_JNI(void, nativePinch, JNIEnv*, jobject, jlong instance, jfloat focus_x, jfloat focus_y, jfloat scale_delta, jboolean continues_gesture)
 {
     view_from(instance).pinch(focus_x, focus_y, scale_delta, continues_gesture);
+}
+
+// A step of a touch scroll, or with `ended`, the lift of the finger, after which the Compositor flings if it was a flick.
+LADYBIRD_JNI(void, nativeScrollGesture, JNIEnv*, jobject, jlong instance, jboolean ended, jfloat x, jfloat y, jfloat raw_x, jfloat raw_y, jfloat delta_x, jfloat delta_y)
+{
+    view_from(instance).scroll_gesture(ended ? Web::ScrollGesturePhase::Ended : Web::ScrollGesturePhase::Ongoing, x, y, raw_x, raw_y, delta_x, delta_y);
 }
 
 // Mouse event types, mirrored in WebViewImplementation.kt.

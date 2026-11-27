@@ -156,7 +156,8 @@ Java_org_serenityos_ladybird_LadybirdActivity_initNativeCode(JNIEnv* env, jobjec
     s_ui_info = {};
     s_ui_info.interface_color_scheme = dark_mode ? Web::CSS::PreferredColorScheme::Dark : Web::CSS::PreferredColorScheme::Light;
     s_ui_info.supports_private_browsing_windows = true;
-    s_ui_info.reports_scroll_momentum = true;
+    // The Compositor flings touch scrolls itself, on the display's clock.
+    s_ui_info.reports_scroll_momentum = false;
     s_ui_info.preferred_languages = { "en"_string };
     Ladybird::RemoteViewAndroid::set_websites_prefer_dark(dark_mode);
 

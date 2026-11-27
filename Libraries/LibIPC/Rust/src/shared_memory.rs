@@ -107,16 +107,22 @@ impl MappedPayload {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "payload file with holes"));
         }
         // NB: The call maps the owned file read-only, and the mapping keeps the file once the descriptor is closed.
-        let address = unsafe {
+        let map = |flags| unsafe {
             libc::mmap(
                 std::ptr::null_mut(),
                 size,
                 libc::PROT_READ,
-                libc::MAP_SHARED,
+                flags,
                 file.as_raw_fd(),
                 0,
             )
         };
+        let mut address = map(libc::MAP_SHARED);
+        // NB: Before Linux 6.7, a write-sealed file can't be mapped shared even read-only, which Android's kernels still
+        //     do. The seal keeps the file from changing, so a private mapping reads the same bytes.
+        if address == libc::MAP_FAILED && io::Error::last_os_error().raw_os_error() == Some(libc::EPERM) {
+            address = map(libc::MAP_PRIVATE);
+        }
         if address == libc::MAP_FAILED {
             return Err(io::Error::last_os_error());
         }

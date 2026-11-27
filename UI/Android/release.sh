@@ -10,8 +10,9 @@
 # 3. Builds the native code (build-native.sh) and a release APK, Build/release/Ladybird-<version>-arm64-v8a.apk.
 # 4. With --publish, pushes the commit and the tag, and makes a GitHub prerelease with the APK and the version's notes.
 #
-# The APK is signed with the key that LADYBIRD_KEYSTORE names (see build.gradle.kts). Without one, it's signed with the
-# Android SDK's development key, ~/.android/debug.keystore, which only installs over builds signed with the same key.
+# The APK is signed with the key that LADYBIRD_KEYSTORE names (see build.gradle.kts). The script reads those variables
+# from ~/.config/ladybird-android/signing.env, or the file LADYBIRD_SIGNING_ENV names, if there's one. Without a key,
+# it's signed with the Android SDK's development key, which only installs over builds signed with the same key.
 #
 # Versions are major.minor.patch. They stay below 1.0 while the port is in alpha.
 
@@ -24,6 +25,10 @@ if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
     echo "usage: $0 <major.minor.patch> [--publish]" >&2
     exit 1
 fi
+
+SIGNING_ENV=${LADYBIRD_SIGNING_ENV:-$HOME/.config/ladybird-android/signing.env}
+# shellcheck disable=SC1090
+[ -f "$SIGNING_ENV" ] && . "$SIGNING_ENV"
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 SOURCE_DIR=$(cd "$SCRIPT_DIR/../.." && pwd)

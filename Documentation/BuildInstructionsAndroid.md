@@ -86,8 +86,18 @@ version, commits and tags it as `v0.2.0`, and builds and signs the APK. With `--
 tag and makes a GitHub prerelease with the APK, its SHA-256 and the notes.
 
 Releases are signed with the key in the keystore that `LADYBIRD_KEYSTORE` names, with `LADYBIRD_KEY_ALIAS`,
-`LADYBIRD_KEYSTORE_PASSWORD` and `LADYBIRD_KEY_PASSWORD`. Without it, the script signs with the Android SDK's
-development key. Android only installs a new release over an old one signed with the same key, so a project's releases
+`LADYBIRD_KEYSTORE_PASSWORD` and `LADYBIRD_KEY_PASSWORD`. The script reads them from
+`~/.config/ladybird-android/signing.env` (or the file `LADYBIRD_SIGNING_ENV` names) if it's there, which keeps the key
+and its password out of the repository:
+
+```sh
+export LADYBIRD_KEYSTORE="$HOME/.config/ladybird-android/ladybird-android-release.jks"
+export LADYBIRD_KEY_ALIAS="ladybird-android"
+export LADYBIRD_KEYSTORE_PASSWORD="..."
+export LADYBIRD_KEY_PASSWORD="..."
+```
+
+Without a key, the script signs with the Android SDK's development key. Android only installs a new release over an old one signed with the same key, so a project's releases
 should always be signed with the same one.
 
 ## Following upstream

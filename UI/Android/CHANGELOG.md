@@ -7,6 +7,8 @@ made.
 
 ## Unreleased
 
+## 0.1.1 (2026-11-27)
+
 ### Fixed
 - About › Licenses opens the licenses of Ladybird and the software it includes, and their notice now says that the
   source code of this app is in this repository.

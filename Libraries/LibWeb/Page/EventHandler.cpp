@@ -5187,7 +5187,24 @@ EventResult EventHandler::handle_pointer_event(Web::MouseEvent const& input, CSS
     // FIXME: Route capture acquired in another navigable outside this local descendant chain, including capture
     //        held in another WebContent process, to its owning EventHandler.
     if (auto* container = as_if<HTML::NavigableContainer>(pointer.nested_target.ptr().ptr())) {
-        auto* child = as_if<HTML::LocalNavigable>(container->content_navigable().ptr());
+        auto content_navigable = container->content_navigable();
+        auto* child = as_if<HTML::LocalNavigable>(content_navigable.ptr());
+        // A touch that began in a frame in another process belongs to that frame until it ends, as it does in a frame in
+        // this process: the rest of it goes there too, or the frame never sees the finger lift, and the tap never
+        // focuses or clicks anything in it.
+        if (!child && content_navigable && is_touch) {
+            if (auto* container_layout = container->layout_node(read)) {
+                auto result = dispatch_event_to_nested_navigable(*this, *container_layout, container, visual_viewport_position, remote_target, [](EventHandler&, CSSPixelPoint) {
+                    return EventResult::Dropped;
+                });
+                if (result.has_value()) {
+                    pointer.active = false;
+                    if (cancelled || (input.type == Web::MouseEvent::Type::MouseUp && pointer.buttons == 0))
+                        m_additional_pointers.remove(properties->pointer_id);
+                    return *result;
+                }
+            }
+        }
         if (child && (is_touch || child->event_handler().has_pointer_capture_in_subtree(properties->pointer_id))) {
             if (auto* container_layout = container->layout_node(read)) {
                 auto result = dispatch_event_to_nested_navigable(*this, *container_layout, container, visual_viewport_position, remote_target, [&](EventHandler& handler, CSSPixelPoint position) {

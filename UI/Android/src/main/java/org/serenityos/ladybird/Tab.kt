@@ -59,6 +59,14 @@ class Tab(
     var zoomLevel = 1f
     /** The URL of the document on screen, as opposed to [url], which may be a navigation still in progress. */
     private var committedUrl: String? = null
+    /**
+     * The address a load was asked for, until the page reaches it. A tab's view starts on about:blank before it goes
+     * there, which the address bar shouldn't show in the meantime.
+     */
+    private var navigatingTo: String? = null
+
+    /** Whether this is the start of a new view on its way to the address it was asked for. */
+    private fun isBlankOnTheWay(url: String) = url == ABOUT_BLANK && navigatingTo != null && navigatingTo != ABOUT_BLANK
     var lastActive = SystemClock.elapsedRealtime()
     private var pendingResources = 0
     private var peakResources = 0
@@ -85,6 +93,7 @@ class Tab(
 
     fun load(context: Context, target: String) {
         url = target
+        navigatingTo = target
         val v = ensureView(context)
         v.loadURL(target)
         isLoading = true
@@ -127,12 +136,15 @@ class Tab(
     override fun onLoadStart(url: String, isRedirect: Boolean) {
         if (url == ABOUT_ERROR)
             return
+        if (!isBlankOnTheWay(url))
+            navigatingTo = null
         if (!isRedirect) {
             loadStartTime = SystemClock.elapsedRealtime()
             firstFrameLogged = false
         }
         android.util.Log.i("LadybirdLoad", "start${if (isRedirect) " (redirect)" else ""} $url")
-        this.url = url
+        if (navigatingTo == null)
+            this.url = url
         isErrorPage = false
         isLoading = true
         loadProgress = 0.15f
@@ -144,6 +156,10 @@ class Tab(
     }
 
     override fun onLoadFinish(url: String) {
+        // The blank start of a new view finishing isn't the page the tab is loading.
+        if (isBlankOnTheWay(url))
+            return
+        navigatingTo = null
         if (loadStartTime != 0L)
             android.util.Log.i("LadybirdLoad", "finish +${SystemClock.elapsedRealtime() - loadStartTime}ms peak-pending=$peakResources $url")
         isLoading = false
@@ -160,7 +176,7 @@ class Tab(
     }
 
     override fun onUrlChange(url: String) {
-        if (url == ABOUT_ERROR)
+        if (url == ABOUT_ERROR || isBlankOnTheWay(url))
             return
         this.url = url
         committedUrl = url
@@ -237,6 +253,7 @@ class Tab(
     companion object {
         const val NEW_TAB_URL = "about:newtab"
         const val ABOUT_ERROR = "about:error"
+        const val ABOUT_BLANK = "about:blank"
         const val THUMBNAIL_WIDTH = 360
     }
 }

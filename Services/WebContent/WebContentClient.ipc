@@ -269,6 +269,7 @@ endpoint WebContentClient routed by Web::PageId page_id
     did_finish_handling_input_event(Web::PageId page_id, u64 event_id, Web::EventResult event_result) =|
     did_update_input_method_state(Web::PageId page_id, Optional<Web::DevicePixelRect> caret_rect, bool is_enabled, i32 cursor_position, i32 anchor_position, Utf16String text_before_cursor, Utf16String text_after_cursor) =|
     did_change_theme_color(Web::PageId page_id, Gfx::Color color) =|
+    did_change_scrolled_to_top(Web::PageId page_id, bool scrolled_to_top) =|
     did_change_background_color(Web::PageId page_id, Gfx::Color color) =|
 
     did_insert_clipboard_item(Web::PageId page_id, Web::Clipboard::SystemClipboardItem item, String presentation_style, Optional<Web::HTML::CrossProcessId> writing_document_id) =|

@@ -398,6 +398,8 @@ endpoint HubClient
     view_page_background_color_change(u64 view_id, Gfx::Color color) =|
     // The page's theme color (<meta name=theme-color>), which a UI may color its toolbar with.
     view_theme_color_change(u64 view_id, Gfx::Color color) =|
+    // Whether the page is scrolled to its top, which a UI may start pull-to-refresh at.
+    view_scrolled_to_top_change(u64 view_id, bool scrolled_to_top) =|
     view_screen_wake_lock_state_changed(u64 view_id, Web::ScreenWakeLockState state) =|
     view_web_content_crashed(u64 view_id, WebView::ViewImplementation::WebContentCrashReason reason) =|
     view_crash_overlay_state_change(u64 view_id, bool active) =|

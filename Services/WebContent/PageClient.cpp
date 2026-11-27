@@ -2280,6 +2280,11 @@ void PageClient::page_did_change_theme_color(Gfx::Color color)
     client().async_did_change_theme_color(m_id, color);
 }
 
+void PageClient::page_did_change_scrolled_to_top(bool scrolled_to_top)
+{
+    client().async_did_change_scrolled_to_top(m_id, scrolled_to_top);
+}
+
 void PageClient::page_did_change_background_color(Gfx::Color color)
 {
     client().async_did_change_background_color(m_id, color);

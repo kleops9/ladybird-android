@@ -406,6 +406,7 @@ private:
     virtual void page_did_set_browser_zoom(double factor) override;
     virtual void page_did_set_device_pixel_ratio_for_testing(double ratio) override;
     virtual void page_did_change_theme_color(Gfx::Color color) override;
+    virtual void page_did_change_scrolled_to_top(bool) override;
     virtual void page_did_change_background_color(Gfx::Color color) override;
     virtual void page_did_insert_clipboard_item(Web::Clipboard::SystemClipboardItem const&, StringView presentation_style, Optional<Web::HTML::CrossProcessId> writing_document_id) override;
     virtual void page_did_request_clipboard_entries_for_paste(u64 request_id) override;

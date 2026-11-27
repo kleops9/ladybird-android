@@ -277,6 +277,7 @@ public:
     // Answers whether a scroll of the user's is still moving, which updates the hover once it stops.
     bool leave_hover_update_to_end_of_user_scroll();
     void clamp_viewport_scroll_offset();
+    void report_whether_scrolled_to_top(bool even_if_unchanged);
 
     // https://html.spec.whatwg.org/multipage/webappapis.html#rendering-opportunity
     [[nodiscard]] bool has_a_rendering_opportunity() const;
@@ -649,6 +650,7 @@ private:
     Optional<CSSPixelSize> m_viewport_size_held_for_rendering_update_in_flight;
     Optional<CSSPixelRect> m_viewport_intersection;
     CSSPixelPoint m_viewport_scroll_offset;
+    bool m_reported_scrolled_to_top { true };
     struct PendingPersistedStateRestoration {
         GC::Weak<DOM::Document> document;
         CrossProcessId document_state_id;

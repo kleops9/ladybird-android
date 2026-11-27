@@ -768,6 +768,7 @@ public:
     Function<void(JsonValue)> on_reference_test_metadata;
     Function<void(size_t current_match_index, Optional<size_t> const& total_match_count)> on_find_in_page;
     Function<void(Gfx::Color)> on_theme_color_change;
+    Function<void(bool)> on_scrolled_to_top_change;
     Function<void(Gfx::Color)> on_page_background_color_change;
     Function<void(Web::ScreenWakeLockState)> on_screen_wake_lock_state_changed;
     enum class WebContentCrashReason {

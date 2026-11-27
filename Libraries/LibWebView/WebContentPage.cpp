@@ -2241,6 +2241,12 @@ void WebContentPage::did_change_theme_color(Gfx::Color color)
     }
 }
 
+void WebContentPage::did_change_scrolled_to_top(bool scrolled_to_top)
+{
+    if (displays_tab() && view().on_scrolled_to_top_change)
+        view().on_scrolled_to_top_change(scrolled_to_top);
+}
+
 void WebContentPage::did_change_background_color(Gfx::Color color)
 {
     if (displays_tab())

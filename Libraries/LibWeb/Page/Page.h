@@ -1028,6 +1028,9 @@ public:
     virtual void page_did_set_device_pixel_ratio_for_testing([[maybe_unused]] double ratio) { }
 
     virtual void page_did_change_theme_color(Gfx::Color) { }
+    // Whether the top-level document is scrolled to its top, which a UI may start pull-to-refresh at. Told on every
+    // change, and whenever a new document becomes active.
+    virtual void page_did_change_scrolled_to_top(bool) { }
     virtual void page_did_change_background_color(Gfx::Color) { }
 
     virtual void page_did_insert_clipboard_item(Clipboard::SystemClipboardItem const&, [[maybe_unused]] StringView presentation_style, [[maybe_unused]] Optional<HTML::CrossProcessId> writing_document_id) { }

@@ -1709,9 +1709,21 @@ Optional<UniqueNodeID> LocalNavigable::active_document_id() const
     return m_active_document->unique_id();
 }
 
+void LocalNavigable::report_whether_scrolled_to_top(bool even_if_unchanged)
+{
+    if (!is_top_level_traversable())
+        return;
+    bool scrolled_to_top = m_viewport_scroll_offset.y() < 1;
+    if (!even_if_unchanged && scrolled_to_top == m_reported_scrolled_to_top)
+        return;
+    m_reported_scrolled_to_top = scrolled_to_top;
+    page().client().page_did_change_scrolled_to_top(scrolled_to_top);
+}
+
 void LocalNavigable::set_active_document(GC::Ptr<DOM::Document> document)
 {
-    if (is_top_level_traversable() && m_active_document != document)
+    bool document_changes = m_active_document != document;
+    if (is_top_level_traversable() && document_changes)
         page().invalidate_compositor_keyboard_scroll_state();
     if (m_active_document && m_active_document != document) {
         // The outgoing document's frame in flight reaches the compositor before any of the new one's.
@@ -1731,6 +1743,9 @@ void LocalNavigable::set_active_document(GC::Ptr<DOM::Document> document)
         document->set_navigable(this);
     update_force_dark_for_active_document();
     set_needs_to_record_display_list();
+    // The UI may have heard of the scroll position of the document before, so it hears of this one's afresh.
+    if (document && document_changes)
+        report_whether_scrolled_to_top(true);
 
     VERIFY(m_active_session_history_entry);
     Optional<UniqueNodeID> document_id;
@@ -5082,6 +5097,7 @@ bool LocalNavigable::store_scroll_offset(Web::AsyncScrollNodeStableID stable_nod
         if (stable_node_id.node_id != document->unique_id() || m_viewport_scroll_offset == scroll_offset)
             return false;
         m_viewport_scroll_offset = scroll_offset;
+        report_whether_scrolled_to_top(false);
         // The viewport's row holds the offset, which is published next to the store it mirrors rather than by each
         // caller. A document without a layout tree is handed it when it builds one.
         if (auto* arena = document->layout_node_arena_if_created())

@@ -603,6 +603,11 @@ void View::forward_callbacks_to_ui(bool is_tab)
             ui->async_view_theme_color_change(view_id(), arguments...);
     };
 
+    on_scrolled_to_top_change = [this](bool scrolled_to_top) {
+        if (auto* ui = ConnectionFromUI::the())
+            ui->async_view_scrolled_to_top_change(view_id(), scrolled_to_top);
+    };
+
     on_page_background_color_change = [this](auto const&... arguments) {
         if (auto* ui = ConnectionFromUI::the()) {
             push_state_to_ui();

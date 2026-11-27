@@ -18,6 +18,14 @@
 #    include <CoreGraphics/CoreGraphics.h>
 #    include <CoreVideo/CoreVideo.h>
 #    include <LibCore/EventLoop.h>
+#elif defined(AK_OS_ANDROID)
+#    include <AK/Atomic.h>
+#    include <AK/AtomicRefCounted.h>
+#    include <AK/NonnullRefPtr.h>
+#    include <LibCore/EventLoop.h>
+#    include <android/choreographer.h>
+#    include <android/looper.h>
+#    include <pthread.h>
 #endif
 
 namespace Compositor {
@@ -344,6 +352,145 @@ OwnPtr<VSyncScheduler> create_vsync_scheduler(Optional<u64> display_id, Function
     }
 
     return make<TimerVSyncScheduler>(move(tick_callback));
+}
+
+#elif defined(AK_OS_ANDROID)
+
+// Android tells apps when the display refreshes through its Choreographer, which runs on a thread with a looper. Frames
+// timed by it reach the display evenly, where a timer drifts against the display and now and then skips a refresh.
+class ChoreographerState final : public AtomicRefCounted<ChoreographerState> {
+public:
+    ChoreographerState(Core::EventLoop& event_loop, Function<void(MonotonicTime)>&& tick_callback)
+        : event_loop(event_loop)
+        , tick_callback(move(tick_callback))
+    {
+    }
+
+    Core::EventLoop& event_loop;
+    Function<void(MonotonicTime)> tick_callback;
+    Atomic<bool> tick_requested { false };
+    Atomic<bool> stopping { false };
+    Atomic<bool> valid { true };
+    Atomic<i64> most_recent_tick_time_nanoseconds { 0 };
+    Atomic<ALooper*> looper { nullptr };
+    Atomic<int> started { 0 }; // 0 while starting, 1 once the Choreographer runs, -1 if there is none.
+    // Only the Choreographer thread uses these.
+    AChoreographer* choreographer { nullptr };
+    bool callback_posted { false };
+};
+
+static void choreographer_frame_callback(int64_t, void* data)
+{
+    auto& state = *static_cast<ChoreographerState*>(data);
+    state.callback_posted = false;
+    auto frame_time = MonotonicTime::now();
+    state.most_recent_tick_time_nanoseconds.store(frame_time.nanoseconds());
+    if (!state.tick_requested.exchange(false))
+        return;
+    state.event_loop.deferred_invoke([state = NonnullRefPtr { state }, frame_time] {
+        if (state->valid.load())
+            state->tick_callback(frame_time);
+    });
+}
+
+static void* choreographer_thread(void* data)
+{
+    auto state = NonnullRefPtr { *static_cast<ChoreographerState*>(data) };
+    state->unref();
+    auto* looper = ALooper_prepare(0);
+    ALooper_acquire(looper);
+    state->choreographer = AChoreographer_getInstance();
+    state->looper.store(looper);
+    state->started.store(state->choreographer ? 1 : -1);
+    while (state->choreographer && !state->stopping.load()) {
+        if (state->tick_requested.load() && !state->callback_posted) {
+            state->callback_posted = true;
+            AChoreographer_postFrameCallback64(state->choreographer, choreographer_frame_callback, state.ptr());
+        }
+        ALooper_pollOnce(-1, nullptr, nullptr, nullptr);
+    }
+    // NB: A posted callback still points at the state, so the looper stops only after it ran.
+    while (state->callback_posted)
+        ALooper_pollOnce(100, nullptr, nullptr, nullptr);
+    ALooper_release(looper);
+    return nullptr;
+}
+
+class ChoreographerVSyncScheduler final : public VSyncScheduler {
+public:
+    AK_ALLOC_WITH_KMALLOC;
+
+    static OwnPtr<ChoreographerVSyncScheduler> try_create(Function<void(MonotonicTime)>&& tick_callback)
+    {
+        auto state = adopt_ref(*new ChoreographerState(Core::EventLoop::current(), move(tick_callback)));
+        pthread_t thread;
+        state->ref();
+        if (pthread_create(&thread, nullptr, choreographer_thread, state.ptr()) != 0) {
+            state->unref();
+            return {};
+        }
+        while (state->started.load() == 0)
+            sched_yield();
+        if (state->started.load() < 0) {
+            pthread_join(thread, nullptr);
+            dbgln("Compositor: No Choreographer, so frames are timed by a timer");
+            return {};
+        }
+        return adopt_own(*new ChoreographerVSyncScheduler(move(state), thread));
+    }
+
+    virtual ~ChoreographerVSyncScheduler() override
+    {
+        m_state->valid.store(false);
+        m_state->stopping.store(true);
+        ALooper_wake(m_state->looper.load());
+        pthread_join(m_thread, nullptr);
+    }
+
+    virtual void schedule(double) override
+    {
+        if (!m_state->tick_requested.exchange(true))
+            ALooper_wake(m_state->looper.load());
+    }
+
+    virtual Optional<MonotonicTime> most_recent_tick_time(MonotonicTime now, double refresh_rate) override
+    {
+        auto tick_time_nanoseconds = m_state->most_recent_tick_time_nanoseconds.load();
+        if (tick_time_nanoseconds == 0 || tick_time_nanoseconds > now.nanoseconds())
+            return {};
+        auto age_nanoseconds = now.nanoseconds() - tick_time_nanoseconds;
+        auto frame_interval_nanoseconds = static_cast<i64>((1'000'000'000.0 / refresh_rate) + 0.5);
+        if (age_nanoseconds >= frame_interval_nanoseconds)
+            return {};
+        return now - AK::Duration::from_nanoseconds(age_nanoseconds);
+    }
+
+private:
+    ChoreographerVSyncScheduler(NonnullRefPtr<ChoreographerState> state, pthread_t thread)
+        : m_state(move(state))
+        , m_thread(thread)
+    {
+    }
+
+    NonnullRefPtr<ChoreographerState> m_state;
+    pthread_t m_thread;
+};
+
+// NB: The callback goes to the timer if there is no Choreographer, so both schedulers share it.
+struct SharedTickCallback final : public AtomicRefCounted<SharedTickCallback> {
+    explicit SharedTickCallback(Function<void(MonotonicTime)>&& callback)
+        : callback(move(callback))
+    {
+    }
+    Function<void(MonotonicTime)> callback;
+};
+
+OwnPtr<VSyncScheduler> create_vsync_scheduler(Optional<u64>, Function<void(MonotonicTime)>&& tick_callback)
+{
+    auto shared = adopt_ref(*new SharedTickCallback(move(tick_callback)));
+    if (auto scheduler = ChoreographerVSyncScheduler::try_create([shared](MonotonicTime frame_time) { shared->callback(frame_time); }); scheduler)
+        return scheduler;
+    return make<TimerVSyncScheduler>([shared](MonotonicTime frame_time) { shared->callback(frame_time); });
 }
 
 #else

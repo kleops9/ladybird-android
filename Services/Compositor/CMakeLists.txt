@@ -61,6 +61,10 @@ target_link_libraries(Compositor PRIVATE compositorservice LibCore LibGfx LibMai
 # ANGLE must precede Skia so macOS GLES symbols bind to ANGLE rather than the
 # OpenGL framework pulled in by Skia.
 target_link_libraries(compositorservice PRIVATE LibCore LibGfx LibImageDecoderClient LibIPC LibMedia LibCompositing compositor_core ${ANGLE_TARGETS} skia)
+if (ANDROID)
+    # The Choreographer times frames to the display.
+    target_link_libraries(compositorservice PRIVATE android)
+endif()
 
 if ((LINUX OR BSD) AND NOT BUILD_SHARED_LIBS)
     target_link_options(compositorservice INTERFACE LINKER:--allow-multiple-definition)

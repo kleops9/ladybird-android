@@ -315,8 +315,16 @@ void RemoteViewAndroid::mouse_event(Web::MouseEvent::Type type, float x, float y
     }
     if (type == Web::MouseEvent::Type::MouseDown || type == Web::MouseEvent::Type::MouseUp)
         event.click_count = click_count;
-    if (is_touch)
-        event.pointer_data = Web::PointerInputData { Web::PointerProperties { .pointer_type = Web::PointerType::Touch } };
+    if (is_touch) {
+        // NB: Pointer id 0 is the mouse's, and LibWeb drops touch input that claims it. Like WebDriver, a touch takes the
+        //     first id after the mouse's and the pen's. Without a pressure sensor, a pointer that's down has the pressure
+        //     0.5 (https://w3c.github.io/pointerevents/#dom-pointerevent-pressure).
+        event.pointer_data = Web::PointerInputData { Web::PointerProperties {
+            .pointer_id = 2,
+            .pointer_type = Web::PointerType::Touch,
+            .pressure = buttons != Web::UIEvents::MouseButton::None ? 0.5 : 0.0,
+        } };
+    }
 
     HubConnection::the().async_view_enqueue_mouse_event(m_view_id, m_next_input_id++, event);
 }

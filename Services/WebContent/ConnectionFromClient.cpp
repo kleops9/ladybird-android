@@ -3405,6 +3405,16 @@ void ConnectionFromClient::update_input_method_state(Web::PageId page_id)
             caret_rect = page->page().enclosing_device_rect(*rect);
 
         if (auto const* text_control = as_if<Web::HTML::FormAssociatedTextControlElement>(document->focused_area().ptr())) {
+            // A control takes typed text whether or not the selection APIs apply to it: they don't to an email or a
+            // number input, which a platform without a hardware keyboard has to show its keyboard for all the same.
+            auto const& html_element = text_control->text_control_to_html_element();
+            if (auto const* input_element = as_if<Web::HTML::HTMLInputElement>(html_element)) {
+                using enum Web::HTML::HTMLInputElement::TypeAttributeState;
+                is_enabled = input_element->is_mutable() && first_is_one_of(input_element->type_state(), Text, Search, Telephone, URL, Email, Password, Number);
+            } else if (auto const* text_area_element = as_if<Web::HTML::HTMLTextAreaElement>(html_element)) {
+                is_enabled = text_area_element->is_mutable();
+            }
+
             if (text_control->selection_start_binding().has_value()) {
                 auto value = text_control->relevant_value();
                 auto selection_start = text_control->selection_start();
@@ -3415,16 +3425,18 @@ void ConnectionFromClient::update_input_method_state(Web::PageId page_id)
                 auto text_before_start = cursor > maximum_input_method_surrounding_text_length ? cursor - maximum_input_method_surrounding_text_length : 0;
                 auto text_after_length = min(value_length - cursor, maximum_input_method_surrounding_text_length);
 
-                auto const& html_element = text_control->text_control_to_html_element();
-                if (auto const* input_element = as_if<Web::HTML::HTMLInputElement>(html_element))
-                    is_enabled = input_element->is_mutable();
-                else if (auto const* text_area_element = as_if<Web::HTML::HTMLTextAreaElement>(html_element))
-                    is_enabled = text_area_element->is_mutable();
-
                 cursor_position = AK::clamp_to<i32>(cursor);
                 anchor_position = AK::clamp_to<i32>(anchor);
                 text_before_cursor = Utf16String::from_utf16(value.substring_view(text_before_start, cursor - text_before_start));
                 text_after_cursor = Utf16String::from_utf16(value.substring_view(cursor, text_after_length));
+            } else if (is_enabled) {
+                // Without a selection to go by, the cursor is reported at the end of the value.
+                auto value = text_control->relevant_value();
+                auto value_length = value.length_in_code_units();
+                auto text_before_start = value_length > maximum_input_method_surrounding_text_length ? value_length - maximum_input_method_surrounding_text_length : 0;
+                cursor_position = AK::clamp_to<i32>(value_length);
+                anchor_position = cursor_position;
+                text_before_cursor = Utf16String::from_utf16(value.substring_view(text_before_start, value_length - text_before_start));
             }
         } else if (auto focused_area = document->focused_area(); focused_area && focused_area->is_editable_or_editing_host()) {
             // The focused area is contenteditable, or a document with designMode enabled. Qt answers Qt::ImEnabled from

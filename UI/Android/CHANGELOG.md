@@ -7,6 +7,9 @@ made.
 
 ## Unreleased
 
+### Changed
+- About says that the app is a hobby project, made with Claude Code.
+
 ## 0.1.1 (2026-11-27)
 
 ### Fixed

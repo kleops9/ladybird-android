@@ -1925,6 +1925,9 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
         content.addView(TextView(this).apply {
             text = "Using a novel engine based on web standards, with no code borrowed from other browsers.\n\n" +
                 "This is an unofficial Android port, made outside the Ladybird project, which doesn't support it.\n\n" +
+                "Ladybird for Android is a hobby project, made in spare time by kleops9 together with Claude Code, " +
+                "Anthropic's AI coding assistant. There's no guarantee of support, though reports and suggestions are " +
+                "welcome.\n\n" +
                 "ladybird.org · github.com/kleops9/ladybird-android"
             setTextAppearance(R.style.TextAppearance_Ladybird_Body)
             gravity = Gravity.CENTER

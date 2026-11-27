@@ -62,6 +62,8 @@ if (HAS_FONTCONFIG)
     list(APPEND SOURCES Font/GlobalFontConfig.cpp Font/SystemFontMatcherFontconfig.cpp)
 elseif (APPLE)
     list(APPEND SOURCES Font/SystemFontMatcherCoreText.cpp)
+elseif (ANDROID)
+    list(APPEND SOURCES Font/SystemFontMatcherAndroid.cpp)
 elseif (WIN32)
     list(APPEND SOURCES Font/SystemFontMatcherDirectWrite.cpp)
 else()
@@ -89,6 +91,8 @@ target_link_libraries(LibGfx PRIVATE libgfx_rust)
 
 if (HAS_FONTCONFIG)
     target_link_libraries(LibGfx PRIVATE Fontconfig::Fontconfig)
+elseif (ANDROID)
+    target_link_libraries(LibGfx PRIVATE android)
 endif()
 
 # FIXME: Build vcpkg libraries with clang-cl so they can also build in sanitize.

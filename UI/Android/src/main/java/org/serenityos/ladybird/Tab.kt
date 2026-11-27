@@ -122,14 +122,15 @@ class Tab(
 
     // --- WebViewClient ---
 
-    // Load timing, logged under "LadybirdLoad" (adb logcat -s LadybirdLoad) to compare sites.
+    // Load timing, logged under "LadybirdLoad" (adb logcat -s LadybirdLoad) to compare sites. Only debug builds log it,
+    // as it names the pages visited.
     private var loadStartTime = 0L
     private var firstFrameLogged = false
 
     fun onFrameForTiming() {
         if (loadStartTime != 0L && !firstFrameLogged) {
             firstFrameLogged = true
-            android.util.Log.i("LadybirdLoad", "first-frame +${SystemClock.elapsedRealtime() - loadStartTime}ms $url")
+            if (BuildConfig.DEBUG) android.util.Log.i("LadybirdLoad", "first-frame +${SystemClock.elapsedRealtime() - loadStartTime}ms $url")
         }
     }
 
@@ -142,7 +143,7 @@ class Tab(
             loadStartTime = SystemClock.elapsedRealtime()
             firstFrameLogged = false
         }
-        android.util.Log.i("LadybirdLoad", "start${if (isRedirect) " (redirect)" else ""} $url")
+        if (BuildConfig.DEBUG) android.util.Log.i("LadybirdLoad", "start${if (isRedirect) " (redirect)" else ""} $url")
         if (navigatingTo == null)
             this.url = url
         isErrorPage = false
@@ -161,7 +162,7 @@ class Tab(
             return
         navigatingTo = null
         if (loadStartTime != 0L)
-            android.util.Log.i("LadybirdLoad", "finish +${SystemClock.elapsedRealtime() - loadStartTime}ms peak-pending=$peakResources $url")
+            if (BuildConfig.DEBUG) android.util.Log.i("LadybirdLoad", "finish +${SystemClock.elapsedRealtime() - loadStartTime}ms peak-pending=$peakResources $url")
         isLoading = false
         loadProgress = 1f
         // Keep showing the address that failed rather than about:error, so it can be fixed or reloaded.

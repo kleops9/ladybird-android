@@ -29,7 +29,10 @@ import android.text.format.DateUtils
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.LayoutInflater
+import android.view.MotionEvent
+import android.view.VelocityTracker
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
@@ -796,6 +799,107 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
         // view it thinks is hidden.
         if (tab === activeTab && !binding.tabSwitcher.root.isVisible)
             view.impl.setVisible(true)
+    }
+
+    // --- Swiping the toolbar to the tab before or after, as in Chrome ---
+
+    private class ToolbarSwipe(val downX: Float, val downY: Float, val velocity: VelocityTracker) {
+        var dragging = false
+    }
+
+    private var toolbarSwipe: ToolbarSwipe? = null
+
+    /** The tab before (-1) or after (+1) the active one, among the tabs of its kind, as the tab switcher lists them. */
+    private fun neighbourTab(direction: Int): Tab? {
+        val tab = activeTab ?: return null
+        val sameKind = tabs.filter { it.isIncognito == tab.isIncognito }
+        val index = sameKind.indexOf(tab)
+        return if (index < 0) null else sameKind.getOrNull(index + direction)
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (handleToolbarSwipe(event))
+            return true
+        return super.dispatchTouchEvent(event)
+    }
+
+    /** Takes the touch over once a gesture on the toolbar turns out to be a sideways swipe. */
+    private fun handleToolbarSwipe(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                toolbarSwipe?.velocity?.recycle()
+                toolbarSwipe = null
+                if (!::binding.isInitialized || isEditingUrl || isFinding || binding.tabSwitcher.root.isVisible || menuPopup?.isShowing == true)
+                    return false
+                val bounds = android.graphics.Rect()
+                if (!binding.toolbarContainer.getGlobalVisibleRect(bounds) || !bounds.contains(event.rawX.toInt(), event.rawY.toInt()))
+                    return false
+                toolbarSwipe = ToolbarSwipe(event.rawX, event.rawY, VelocityTracker.obtain()).also { it.velocity.addMovement(event) }
+                return false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val swipe = toolbarSwipe ?: return false
+                swipe.velocity.addMovement(event)
+                val dx = event.rawX - swipe.downX
+                val dy = event.rawY - swipe.downY
+                if (!swipe.dragging) {
+                    val slop = ViewConfiguration.get(this).scaledTouchSlop * 1.5f
+                    if (kotlin.math.abs(dy) > slop && kotlin.math.abs(dy) > kotlin.math.abs(dx)) {
+                        toolbarSwipe = null
+                        swipe.velocity.recycle()
+                        return false
+                    }
+                    if (kotlin.math.abs(dx) < slop || kotlin.math.abs(dx) < 2 * kotlin.math.abs(dy))
+                        return false
+                    swipe.dragging = true
+                    // The buttons and the address field under the finger stop following it.
+                    val cancel = MotionEvent.obtain(event).apply { action = MotionEvent.ACTION_CANCEL }
+                    super.dispatchTouchEvent(cancel)
+                    cancel.recycle()
+                    binding.content.animate().cancel()
+                }
+                // The page follows the finger, and resists where there's no tab to go to.
+                val hasNeighbour = neighbourTab(if (dx < 0) 1 else -1) != null
+                binding.content.translationX = if (hasNeighbour) dx else dx * 0.15f
+                return true
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                val swipe = toolbarSwipe ?: return false
+                toolbarSwipe = null
+                swipe.velocity.addMovement(event)
+                swipe.velocity.computeCurrentVelocity(1000)
+                val velocityX = swipe.velocity.xVelocity
+                swipe.velocity.recycle()
+                if (!swipe.dragging)
+                    return false
+                val dx = event.rawX - swipe.downX
+                val width = binding.content.width.toFloat().coerceAtLeast(1f)
+                val direction = if (dx < 0) 1 else -1
+                val target = neighbourTab(direction)
+                val flung = kotlin.math.abs(velocityX) > dpf(800f) && (velocityX < 0) == (dx < 0)
+                if (event.actionMasked == MotionEvent.ACTION_UP && target != null && (kotlin.math.abs(dx) > width / 4 || flung))
+                    slideToTab(target, direction)
+                else
+                    binding.content.animate().translationX(0f).setDuration(180).start()
+                return true
+            }
+        }
+        return false
+    }
+
+    /** Slides the page out to the side it was swiped to, and the tab from the other side in. */
+    private fun slideToTab(target: Tab, direction: Int) {
+        val content = binding.content
+        val width = content.width.toFloat()
+        content.animate()
+            .translationX(-direction * width)
+            .setDuration(140)
+            .withEndAction {
+                activateTab(target)
+                content.translationX = direction * width
+                content.animate().translationX(0f).setDuration(180).start()
+            }
+            .start()
     }
 
     // --- Pull to refresh ---

@@ -7,6 +7,8 @@ made.
 
 ## Unreleased
 
+## 0.1.0 (2026-11-27)
+
 The first public alpha. It runs the Ladybird engine as of November 2026, with a browser interface made for Android.
 
 ### Browsing

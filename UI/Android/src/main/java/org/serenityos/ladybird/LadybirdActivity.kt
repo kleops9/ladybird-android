@@ -1917,7 +1917,15 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
             setPadding(0, dp(14), 0, 0)
         })
         content.addView(TextView(this).apply {
-            text = "Using a novel engine based on web standards, with no code borrowed from other browsers.\n\nladybird.org"
+            text = "Version ${BuildConfig.VERSION_NAME} (alpha)"
+            setTextAppearance(R.style.TextAppearance_Ladybird_Emphasis)
+            gravity = Gravity.CENTER
+            setPadding(0, dp(12), 0, 0)
+        })
+        content.addView(TextView(this).apply {
+            text = "Using a novel engine based on web standards, with no code borrowed from other browsers.\n\n" +
+                "This is an unofficial Android port, made outside the Ladybird project, which doesn't support it.\n\n" +
+                "ladybird.org · github.com/kleops9/ladybird-android"
             setTextAppearance(R.style.TextAppearance_Ladybird_Body)
             gravity = Gravity.CENTER
             setPadding(0, dp(16), 0, 0)

@@ -13,7 +13,8 @@ set -e
 ABI=${1:-arm64-v8a}
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 SOURCE_DIR=$(cd "$SCRIPT_DIR/../.." && pwd)
-BUILD_DIR="$SOURCE_DIR/Build/android-$ABI"
+# LADYBIRD_ANDROID_BUILD_DIR picks another build directory, such as one configured before.
+BUILD_DIR=${LADYBIRD_ANDROID_BUILD_DIR:-$SOURCE_DIR/Build/android-$ABI}
 ANDROID_HOME=${ANDROID_HOME:-$HOME/Android/Sdk}
 NDK_VERSION=$(sed -n 's/.*ndkVersion = "\(.*\)".*/\1/p' "$SCRIPT_DIR/build.gradle.kts")
 NDK="$ANDROID_HOME/ndk/$NDK_VERSION"

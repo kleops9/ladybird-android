@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application") version "8.11.0"
     id("org.jetbrains.kotlin.android") version "2.1.20"
@@ -6,6 +8,18 @@ plugins {
 // With -PladybirdNativeBuildDir=<CMake build directory>, Gradle packages a native build made beforehand (with
 // UI/Android/build-native.sh) instead of running CMake itself, which saves building everything a second time.
 val prebuiltNativeBuildDir = providers.gradleProperty("ladybirdNativeBuildDir").orNull
+
+// The version is in version.properties, which release.sh sets. Android orders the versions of an app by their version
+// code, which major.minor.patch gives as major * 1000000 + minor * 1000 + patch.
+val appVersion: String = Properties().apply { file("version.properties").inputStream().use { load(it) } }.getProperty("version")
+val appVersionCode: Int = appVersion.split('.').let { parts ->
+    require(parts.size == 3 && parts.all { it.toIntOrNull() != null }) { "version.properties: '$appVersion' isn't major.minor.patch" }
+    parts[0].toInt() * 1_000_000 + parts[1].toInt() * 1_000 + parts[2].toInt()
+}
+
+// Release APKs are signed with the key in the keystore that LADYBIRD_KEYSTORE names, by LADYBIRD_KEY_ALIAS, with the
+// passwords in LADYBIRD_KEYSTORE_PASSWORD and LADYBIRD_KEY_PASSWORD. Without it, they're left unsigned.
+val releaseKeystore: String? = System.getenv("LADYBIRD_KEYSTORE")
 
 android {
     namespace = "org.serenityos.ladybird"
@@ -17,8 +31,8 @@ android {
         applicationId = "org.serenityos.ladybird"
         minSdk = 30
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = appVersionCode
+        versionName = appVersion
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         if (prebuiltNativeBuildDir == null) {
@@ -42,8 +56,20 @@ android {
         }
     }
 
+    if (releaseKeystore != null) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv("LADYBIRD_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("LADYBIRD_KEY_ALIAS")
+                keyPassword = System.getenv("LADYBIRD_KEY_PASSWORD") ?: System.getenv("LADYBIRD_KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         debug {
+            versionNameSuffix = "-dev"
             if (prebuiltNativeBuildDir == null) externalNativeBuild {
                 cmake {
                     // A CMake Debug build compiles with -ggdb3, which makes each LibWeb object ~12 MB and every
@@ -56,6 +82,7 @@ android {
             }
         }
         release {
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -96,6 +123,7 @@ android {
     }
 
     buildFeatures {
+        buildConfig = true
         viewBinding = true
         prefab = true
     }

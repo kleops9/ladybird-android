@@ -34,6 +34,7 @@ import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
+import android.widget.BaseAdapter
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -61,6 +62,9 @@ import androidx.swiperefreshlayout.widget.CircularProgressDrawable
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import com.google.android.material.shape.CornerFamily
+import com.google.android.material.shape.MaterialShapeDrawable
+import com.google.android.material.shape.ShapeAppearanceModel
 import com.google.android.material.snackbar.Snackbar
 import org.serenityos.ladybird.databinding.ActivityMainBinding
 import java.io.File
@@ -977,7 +981,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
     }
 
     override fun onTabAlert(tab: Tab, message: String) {
-        MaterialAlertDialogBuilder(this)
+        menuDialog()
             .setTitle(dialogTitle(tab))
             .setMessage(message)
             .setPositiveButton(android.R.string.ok, null)
@@ -987,7 +991,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
 
     override fun onTabConfirm(tab: Tab, message: String) {
         var accepted = false
-        MaterialAlertDialogBuilder(this)
+        menuDialog()
             .setTitle(dialogTitle(tab))
             .setMessage(message)
             .setPositiveButton(android.R.string.ok) { _, _ -> accepted = true }
@@ -1003,7 +1007,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
             addView(input)
         }
         var response: String? = null
-        MaterialAlertDialogBuilder(this)
+        menuDialog()
             .setTitle(dialogTitle(tab))
             .setMessage(message)
             .setView(frame)
@@ -1026,7 +1030,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
                 return view
             }
         }
-        MaterialAlertDialogBuilder(this)
+        menuDialog()
             .setSingleChoiceItems(adapter, selectedIndex) { dialog, which ->
                 if (enabled[which]) {
                     chosen = ids[which]
@@ -1371,7 +1375,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
         if (tab.url == Tab.NEW_TAB_URL)
             return
         val secure = tab.url.startsWith("https://")
-        MaterialAlertDialogBuilder(this)
+        menuDialog()
             .setIcon(if (secure) R.drawable.ic_lock else R.drawable.ic_info)
             .setTitle(BrowserStore.hostOf(tab.url))
             .setMessage(
@@ -1419,9 +1423,13 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
             "Clear browsing history",
             "About Ladybird",
         )
-        MaterialAlertDialogBuilder(this)
+        val icons = intArrayOf(
+            R.drawable.ic_search, R.drawable.ic_contrast, R.drawable.ic_desktop, R.drawable.ic_shield, R.drawable.ic_privacy,
+            R.drawable.ic_tab, R.drawable.ic_public, R.drawable.ic_memory, R.drawable.ic_speed, R.drawable.ic_delete, R.drawable.ic_info,
+        )
+        menuDialog()
             .setTitle(R.string.settings)
-            .setItems(entries) { _, which ->
+            .setAdapter(settingsAdapter(settingsRows(entries, icons))) { _, which ->
                 when (which) {
                     0 -> chooseSearchEngine()
                     1 -> chooseTheme()
@@ -1448,6 +1456,44 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
             .show()
     }
 
+    /** A dialog that looks like the menu: its surface, hairline border and corners. */
+    private fun menuDialog(): MaterialAlertDialogBuilder {
+        val shape = ShapeAppearanceModel.builder().setAllCorners(CornerFamily.ROUNDED, dpf(12f)).build()
+        val background = MaterialShapeDrawable(shape).apply {
+            fillColor = ColorStateList.valueOf(getColor(R.color.menu_bg))
+            setStroke(dpf(1f), getColor(R.color.border))
+        }
+        return MaterialAlertDialogBuilder(this).setBackground(background)
+    }
+
+    /** A row of the settings: an icon, the setting, and what it's set to, as the menu's rows are laid out. */
+    private class SettingsRow(val icon: Int?, val title: String, val summary: String?)
+
+    private fun settingsAdapter(rows: List<SettingsRow>) = object : BaseAdapter() {
+        override fun getCount() = rows.size
+        override fun getItem(position: Int) = rows[position]
+        override fun getItemId(position: Int) = position.toLong()
+        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+            val view = convertView ?: layoutInflater.inflate(R.layout.item_settings, parent, false)
+            val row = rows[position]
+            view.findViewById<ImageView>(R.id.settings_item_icon).apply {
+                isVisible = row.icon != null
+                row.icon?.let { setImageResource(it) }
+            }
+            view.findViewById<TextView>(R.id.settings_item_title).text = row.title
+            view.findViewById<TextView>(R.id.settings_item_summary).apply {
+                isVisible = row.summary != null
+                text = row.summary
+            }
+            return view
+        }
+    }
+
+    /** Rows from entries of a title and, after a line break, a summary. */
+    private fun settingsRows(entries: Array<String>, icons: IntArray?) = entries.mapIndexed { index, entry ->
+        SettingsRow(icons?.getOrNull(index), entry.substringBefore('\n'), entry.substringAfter('\n', "").ifEmpty { null })
+    }
+
     // --- Engine settings: ad blocking, privacy, tabs, site settings ---
 
     private fun enabledFilterListCount(settings: EngineSettings) =
@@ -1470,10 +1516,10 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
         else -> "Muted only"
     }
 
-    private fun showSettingsList(title: String, entries: Array<String>, onBack: () -> Unit = { showSettings() }, onPick: (Int) -> Unit) {
-        MaterialAlertDialogBuilder(this)
+    private fun showSettingsList(title: String, entries: Array<String>, icons: IntArray? = null, onBack: () -> Unit = { showSettings() }, onPick: (Int) -> Unit) {
+        menuDialog()
             .setTitle(title)
-            .setItems(entries) { _, which -> onPick(which) }
+            .setAdapter(settingsAdapter(settingsRows(entries, icons))) { _, which -> onPick(which) }
             .setNegativeButton("Back") { _, _ -> onBack() }
             .show()
     }
@@ -1492,7 +1538,8 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
         )
         if (host != null)
             entries.add(if (host in allowed) "Block on $host again" else "Don't block on $host")
-        showSettingsList("Ad & tracker blocking", entries.toTypedArray()) { which ->
+        val icons = intArrayOf(R.drawable.ic_shield, R.drawable.ic_list, R.drawable.ic_download, R.drawable.ic_code, R.drawable.ic_check_circle, R.drawable.ic_public)
+        showSettingsList("Ad & tracker blocking", entries.toTypedArray(), icons) { which ->
             when (which) {
                 0 -> {
                     settings.setContentBlockingEnabled(!on)
@@ -1518,7 +1565,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
         val labels = lists.map { (_, name, isLanguage) -> if (isLanguage) "Websites in $name" else name }.toTypedArray()
         val checked = lists.map { current[it.first] == true }.toBooleanArray()
         val original = checked.copyOf()
-        MaterialAlertDialogBuilder(this)
+        menuDialog()
             .setTitle("Filter lists")
             .setMultiChoiceItems(labels, checked) { _, which, isChecked -> checked[which] = isChecked }
             .setPositiveButton("Done") { _, _ ->
@@ -1541,7 +1588,8 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
         val settings = engineSettings
         val subscriptions = settings.subscriptions
         val entries = (listOf("Subscribe to a list…") + subscriptions.map { "${it.url}\n${if (it.enabled) "On" else "Off"}" }).toTypedArray()
-        showSettingsList("Your own filter lists", entries, { showContentBlockingSettings() }) { which ->
+        val icons = IntArray(entries.size) { if (it == 0) R.drawable.ic_add else R.drawable.ic_list }
+        showSettingsList("Your own filter lists", entries, icons, { showContentBlockingSettings() }) { which ->
             if (which == 0) {
                 promptForText("Subscribe to a filter list", "Address of the list (https://…)", "") { url ->
                     val trimmed = url.trim()
@@ -1557,7 +1605,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
                 return@showSettingsList
             }
             val subscription = subscriptions[which - 1]
-            MaterialAlertDialogBuilder(this)
+            menuDialog()
                 .setTitle(subscription.url)
                 .setItems(arrayOf(if (subscription.enabled) "Turn off" else "Turn on", "Remove")) { _, action ->
                     val updated = when (action) {
@@ -1589,7 +1637,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
             setPadding(dp(20), dp(8), dp(20), 0)
             addView(field)
         }
-        MaterialAlertDialogBuilder(this)
+        menuDialog()
             .setTitle("Your own filter rules")
             .setView(container)
             .setPositiveButton("Save") { _, _ ->
@@ -1608,7 +1656,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
             showContentBlockingSettings()
             return
         }
-        showSettingsList("Tap a site to block on it again", sites.toTypedArray(), { showContentBlockingSettings() }) { which ->
+        showSettingsList("Tap a site to block on it again", sites.toTypedArray(), IntArray(sites.size) { R.drawable.ic_public }, { showContentBlockingSettings() }) { which ->
             settings.setAllowedSites(sites - sites[which])
             showAllowedSites()
         }
@@ -1623,7 +1671,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
         )
         if (dns != null)
             entries.add("Check DNSSEC signatures\n${if (dns.dnssec) "On" else "Off"}")
-        showSettingsList("Privacy & security", entries.toTypedArray()) { which ->
+        showSettingsList("Privacy & security", entries.toTypedArray(), intArrayOf(R.drawable.ic_privacy, R.drawable.ic_dns, R.drawable.ic_shield)) { which ->
             when (which) {
                 0 -> {
                     settings.setGlobalPrivacyControl(!settings.globalPrivacyControl)
@@ -1646,7 +1694,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
             current == null -> 0
             else -> DNS_PRESETS.indexOfFirst { it.second == current.copy(dnssec = false) }.let { if (it >= 0) it + 1 else labels.size - 1 }
         }
-        MaterialAlertDialogBuilder(this)
+        menuDialog()
             .setTitle("DNS server")
             .setSingleChoiceItems(labels, selected) { dialog, which ->
                 dialog.dismiss()
@@ -1679,12 +1727,12 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
             "Unload tabs you haven't looked at\n${unloadTabsName(settings.unloadTabsAfterMinutes)}. A tab reloads when you return to it.",
             "Let tabs share a process\n${processes[settings.tabProcesses] ?: settings.tabProcesses}. Shared processes use less memory, but crash together.",
         )
-        showSettingsList("Tabs", entries) { which ->
+        showSettingsList("Tabs", entries, intArrayOf(R.drawable.ic_tab, R.drawable.ic_memory)) { which ->
             when (which) {
                 0 -> {
                     val minutes = intArrayOf(0, 30, 60, 120, 240, 480)
                     val labels = arrayOf("Never", "After 30 minutes", "After 1 hour", "After 2 hours", "After 4 hours", "After 8 hours")
-                    MaterialAlertDialogBuilder(this)
+                    menuDialog()
                         .setTitle("Unload tabs you haven't looked at")
                         .setSingleChoiceItems(labels, minutes.indexOf(settings.unloadTabsAfterMinutes)) { dialog, picked ->
                             dialog.dismiss()
@@ -1696,7 +1744,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
                 }
                 1 -> {
                     val values = processes.keys.toList()
-                    MaterialAlertDialogBuilder(this)
+                    menuDialog()
                         .setTitle("Let tabs share a process")
                         .setSingleChoiceItems(processes.values.toTypedArray(), values.indexOf(settings.tabProcesses)) { dialog, picked ->
                             dialog.dismiss()
@@ -1712,10 +1760,10 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
 
     private fun showSiteSettings() {
         val settings = engineSettings
-        showSettingsList("Site settings", arrayOf("Autoplay\n${autoplayName(settings.autoplayPolicy)}")) {
+        showSettingsList("Site settings", arrayOf("Autoplay\n${autoplayName(settings.autoplayPolicy)}"), intArrayOf(R.drawable.ic_play_circle)) {
             val values = arrayOf("allow-audio-and-video", "block-audio", "block-audio-and-video")
             val labels = arrayOf("Allow audio and video", "Allow only muted video", "Block audio and video")
-            MaterialAlertDialogBuilder(this)
+            menuDialog()
                 .setTitle("Autoplay")
                 .setSingleChoiceItems(labels, values.indexOf(settings.autoplayPolicy)) { dialog, picked ->
                     dialog.dismiss()
@@ -1738,7 +1786,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
             setPadding(dp(20), dp(8), dp(20), 0)
             addView(field)
         }
-        MaterialAlertDialogBuilder(this)
+        menuDialog()
             .setTitle(title)
             .setView(container)
             .setPositiveButton(android.R.string.ok) { _, _ -> onDone(field.text.toString()) }
@@ -1770,7 +1818,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
             gravity = Gravity.CENTER
             setPadding(0, dp(16), 0, 0)
         })
-        MaterialAlertDialogBuilder(this)
+        menuDialog()
             .setView(content)
             .setPositiveButton(android.R.string.ok, null)
             .show()
@@ -1778,7 +1826,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
 
     private fun chooseRenderer() {
         val labels = arrayOf("GPU (Vulkan)", "CPU")
-        MaterialAlertDialogBuilder(this)
+        menuDialog()
             .setTitle("Rendering")
             .setSingleChoiceItems(labels, if (store.cpuPainting) 1 else 0) { dialog, which ->
                 dialog.dismiss()
@@ -1798,7 +1846,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
 
     private fun chooseSearchEngine() {
         val names = WebViewImplementation.searchEngineNames()
-        MaterialAlertDialogBuilder(this)
+        menuDialog()
             .setTitle("Search engine")
             .setSingleChoiceItems(names, names.indexOf(store.searchEngine)) { dialog, which ->
                 store.searchEngine = names[which]
@@ -1810,7 +1858,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
     private fun chooseTheme() {
         val labels = arrayOf("System default", "Light", "Dark")
         val values = intArrayOf(WebViewImplementation.COLOR_SCHEME_AUTO, WebViewImplementation.COLOR_SCHEME_LIGHT, WebViewImplementation.COLOR_SCHEME_DARK)
-        MaterialAlertDialogBuilder(this)
+        menuDialog()
             .setTitle("Theme")
             .setSingleChoiceItems(labels, values.indexOf(store.theme)) { dialog, which ->
                 dialog.dismiss()
@@ -1823,7 +1871,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
     }
 
     private fun confirmClearHistory() {
-        MaterialAlertDialogBuilder(this)
+        menuDialog()
             .setTitle("Clear browsing history?")
             .setMessage("This clears your history and the most visited sites on the new tab page.")
             .setPositiveButton("Clear") { _, _ ->
@@ -1933,7 +1981,7 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
                 v.findViewById<View>(R.id.entry_remove).setOnClickListener {
                     val confirmation = e.removeConfirmation
                     if (confirmation != null) {
-                        MaterialAlertDialogBuilder(this@LadybirdActivity)
+                        menuDialog()
                             .setTitle(confirmation)
                             .setMessage("The file will be removed from your device.")
                             .setPositiveButton("Delete") { _, _ ->

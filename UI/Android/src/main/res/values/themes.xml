@@ -72,14 +72,29 @@
         <item name="android:fontFamily">sans-serif-medium</item>
     </style>
 
+    <!-- Dialogs look like the menu: its plain surface with a hairline border and its corners, untinted by the accent. -->
     <style name="ThemeOverlay.Ladybird.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
-        <item name="colorSurface">@color/page_bg</item>
-        <item name="colorSurfaceContainerHigh">@color/page_bg</item>
+        <item name="colorSurface">@color/menu_bg</item>
+        <item name="colorSurfaceContainerHigh">@color/menu_bg</item>
+        <item name="elevationOverlayEnabled">false</item>
+        <item name="alertDialogStyle">@style/Widget.Ladybird.AlertDialog</item>
+        <item name="android:textColorAlertDialogListItem">@color/text_primary</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary</item>
         <item name="shapeAppearanceOverlay">@style/ShapeAppearance.Ladybird.Card</item>
         <item name="materialAlertDialogTitleTextStyle">@style/TextAppearance.Ladybird.DialogTitle.Style</item>
         <item name="buttonBarPositiveButtonStyle">@style/Widget.Ladybird.Button.Text</item>
         <item name="buttonBarNegativeButtonStyle">@style/Widget.Ladybird.Button.Text</item>
         <item name="buttonBarNeutralButtonStyle">@style/Widget.Ladybird.Button.Text</item>
+    </style>
+
+    <style name="Widget.Ladybird.AlertDialog" parent="MaterialAlertDialog.Material3">
+        <item name="backgroundTint">@color/menu_bg</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Ladybird.Menu</item>
+    </style>
+
+    <style name="ShapeAppearance.Ladybird.Menu" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">12dp</item>
     </style>
 
     <style name="TextAppearance.Ladybird.DialogTitle.Style" parent="MaterialAlertDialog.Material3.Title.Text">

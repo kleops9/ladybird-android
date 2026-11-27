@@ -1,3 +1,35 @@
+# Ladybird for Android
+
+An unofficial Android port of [Ladybird](https://ladybird.org), the truly independent web browser that uses a novel
+engine based on web standards.
+
+> [!IMPORTANT]
+> This port is made outside the Ladybird project, which doesn't support it. Please report problems with it
+> [here](https://github.com/kleops9/ladybird-android/issues), not to the Ladybird project. Like Ladybird itself, it's
+> alpha software: expect sites that don't work, and crashes.
+
+## Trying it
+
+Download the APK of the [latest release](https://github.com/kleops9/ladybird-android/releases) on your phone, and open
+it to install it. Android asks once to allow installing apps from your browser or file manager. It needs a 64-bit ARM
+phone with Android 11 or later. New releases install over the old one.
+
+The [changelog](UI/Android/CHANGELOG.md) lists what each release brings and what doesn't work yet.
+
+## What's here
+
+- `android`: the port, on top of the upstream engine. Releases are tagged `v0.x.y`.
+- `master`: a mirror of [upstream Ladybird](https://github.com/LadybirdBrowser/ladybird).
+
+The Android app is in [UI/Android](UI/Android), and the few changes to the engine are commits of their own on
+`android`. [Documentation/BuildInstructionsAndroid.md](Documentation/BuildInstructionsAndroid.md) explains how to build
+it, how it works, and how releases are made. Ladybird and this port are under the 2-clause BSD license, in
+[LICENSE](LICENSE).
+
+---
+
+*The rest of this file is upstream Ladybird's README.*
+
 # Ladybird
 
 [Ladybird](https://ladybird.org) is a truly independent web browser, using a novel engine based on web standards.

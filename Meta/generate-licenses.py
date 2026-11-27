@@ -754,7 +754,7 @@ def generate(args: argparse.Namespace) -> str:
             introduction += [f"  {library}", f"    {THIRD_PARTY_SOURCES_URL}/{archive_name()}"]
         introduction += [
             "",
-            "The source code of Ladybird at https://github.com/LadybirdBrowser/ladybird contains everything needed to",
+            f"The source code of Ladybird at {args.source_url} contains everything needed to",
             "build it against modified versions of these libraries.",
         ]
     elif lgpl:
@@ -764,7 +764,7 @@ def generate(args: argparse.Namespace) -> str:
             "",
             *[f"  {library}" for library, _ in lgpl],
             "",
-            "The source code of Ladybird at https://github.com/LadybirdBrowser/ladybird contains everything needed to",
+            f"The source code of Ladybird at {args.source_url} contains everything needed to",
             "build it against modified versions of these libraries, and the build downloads the source code of each",
             "of them in the version listed here.",
         ]
@@ -795,6 +795,11 @@ def main() -> int:
     parser.add_argument("--vcpkg-triplet")
     parser.add_argument("--cargo", default="cargo")
     parser.add_argument("--rust-target")
+    parser.add_argument(
+        "--source-url",
+        default="https://github.com/LadybirdBrowser/ladybird",
+        help="where the source code of the build is, for the LGPL notice",
+    )
     parser.add_argument("--offline", action="store_true")
     parser.add_argument(
         "--release", action="store_true", help="name where release-tools publishes the source of each LGPL port"

@@ -3,9 +3,19 @@ include_guard()
 set(licenses_text_file "${CMAKE_BINARY_DIR}/LICENSES.txt")
 
 set(licenses_generator "${LADYBIRD_SOURCE_DIR}/Meta/generate-licenses.py")
+
+# The LGPL notice names where the source code of the build is. The Android port is made in a repository of its own.
+if (ANDROID)
+    set(default_source_url "https://github.com/kleops9/ladybird-android")
+else()
+    set(default_source_url "https://github.com/LadybirdBrowser/ladybird")
+endif()
+set(LADYBIRD_SOURCE_URL "${default_source_url}" CACHE STRING "Where the source code of this build is published")
+
 set(licenses_arguments
     --output "${licenses_text_file}"
     --source-dir "${LADYBIRD_SOURCE_DIR}"
+    --source-url "${LADYBIRD_SOURCE_URL}"
     --cargo "${RUST_CARGO}"
     --rust-target "${RUST_TARGET_TRIPLE}"
 )

@@ -315,7 +315,9 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
         val tab = activeTab
         val switcherVisible = binding.tabSwitcher.root.isVisible
         val incognito = tab?.isIncognito == true
-        val themeColor = if (!incognito && !isEditingUrl && !isFinding) tab?.themeColor else null
+        // In dark mode, a page without a dark theme of its own is darkened, but its theme color is still the light one.
+        val themeColor = (if (!incognito && !isEditingUrl && !isFinding) tab?.themeColor else null)
+            ?.takeUnless { isNight && ColorUtils.calculateLuminance(it) >= 0.4 }
 
         val background: Int
         val foreground: Int
@@ -781,6 +783,10 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
 
     override fun configureNewView(tab: Tab, view: WebView) {
         view.presize(binding.webContainer.width, binding.webContainer.height)
+        // A tab gets its view when it first loads a page, after it was shown on the new tab page. The Hub doesn't paint a
+        // view it thinks is hidden.
+        if (tab === activeTab && !binding.tabSwitcher.root.isVisible)
+            view.impl.setVisible(true)
     }
 
     override fun onTabStateChanged(tab: Tab) {

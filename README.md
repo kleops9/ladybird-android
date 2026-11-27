@@ -11,8 +11,7 @@ engine based on web standards.
 ## About this project
 
 Ladybird for Android is a hobby project, made in spare time by [kleops9](https://github.com/kleops9) together with
-[Claude Code](https://claude.com/claude-code), Anthropic's AI coding assistant. There's no company behind it and no
-guarantee of support, though reports and suggestions are welcome.
+[Claude Code](https://claude.com/claude-code), Anthropic's AI coding assistant. There's no guarantee of support, though reports and suggestions are welcome.
 
 ## Trying it
 

@@ -1,14 +1,11 @@
 blank_issues_enabled: true
 contact_links:
-  - name: Join our Discord server
-    url: https://discord.gg/nvfjVJ4Svh
-    about: Chat with the Ladybird maintainers and contributors and other users.
-  - name: Read our FAQ
-    url: https://github.com/LadybirdBrowser/ladybird/blob/master/Documentation/FAQ.md
-    about: Read answers for some of the most frequently-asked questions about Ladybird.
-  - name: Read our documentation
-    url: https://github.com/LadybirdBrowser/ladybird/blob/master/Documentation/README.md
-    about: Read the docs about building Ladybird, and about configuring your Ladybird development environment.
-  - name: Get involved with Ladybird
-    url: https://github.com/LadybirdBrowser/ladybird/blob/master/CONTRIBUTING.md
-    about: Read the project participation guidelines.
+  - name: Read about Ladybird for Android
+    url: https://github.com/kleops9/ladybird-android#readme
+    about: What the port is, how to install it, and what doesn't work yet.
+  - name: Build Ladybird for Android
+    url: https://github.com/kleops9/ladybird-android/blob/android/Documentation/BuildInstructionsAndroid.md
+    about: How to build the app yourself, and how it works.
+  - name: Report engine bugs that happen on desktop too to Ladybird
+    url: https://github.com/LadybirdBrowser/ladybird/issues
+    about: If a page breaks the same way in Ladybird on a computer, the Ladybird project can fix it for everyone. It doesn't take reports about this port.

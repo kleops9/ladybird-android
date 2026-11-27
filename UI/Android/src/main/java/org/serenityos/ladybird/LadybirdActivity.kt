@@ -1403,10 +1403,17 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
             WebViewImplementation.COLOR_SCHEME_LIGHT -> "Light"
             else -> "System default"
         }
+        val settings = engineSettings
+        val blocking = if (settings.contentBlockingEnabled) "On · ${enabledFilterListCount(settings)} lists" else "Off"
+        val dns = settings.dnsServer?.let { dnsServerName(it) } ?: "System DNS"
         val entries = arrayOf(
             "Search engine\n${store.searchEngine}",
             "Theme\n${themeName(store.theme)}",
             "Desktop site\n${if (store.desktopSiteByDefault) "On" else "Off"}",
+            "Ad & tracker blocking\n$blocking",
+            "Privacy & security\n$dns · Global Privacy Control ${if (settings.globalPrivacyControl) "on" else "off"}",
+            "Tabs\n${unloadTabsName(settings.unloadTabsAfterMinutes)}",
+            "Site settings\nAutoplay: ${autoplayName(settings.autoplayPolicy)}",
             "Rendering\n${if (store.cpuPainting) "CPU" else "GPU (Vulkan)"}",
             "Show frame rate\n${if (store.showFrameRate) "On" else "Off"}",
             "Clear browsing history",
@@ -1424,16 +1431,318 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
                             WebViewImplementation.setMobileUserAgent(!store.desktopSiteByDefault)
                         showSettings()
                     }
-                    3 -> chooseRenderer()
-                    4 -> {
+                    3 -> showContentBlockingSettings()
+                    4 -> showPrivacySettings()
+                    5 -> showTabSettings()
+                    6 -> showSiteSettings()
+                    7 -> chooseRenderer()
+                    8 -> {
                         store.showFrameRate = !store.showFrameRate
                         updateFrameRateOverlay()
                         showSettings()
                     }
-                    5 -> confirmClearHistory()
-                    6 -> showAbout()
+                    9 -> confirmClearHistory()
+                    10 -> showAbout()
                 }
             }
+            .show()
+    }
+
+    // --- Engine settings: ad blocking, privacy, tabs, site settings ---
+
+    private fun enabledFilterListCount(settings: EngineSettings) =
+        settings.builtInLists.count { it.value } + settings.subscriptions.count { it.enabled }
+
+    private fun dnsServerName(dns: EngineSettings.DnsServer) = DNS_PRESETS.firstOrNull { it.second == dns.copy(dnssec = false) }?.first
+        ?: "${dns.server}${if (dns.overTls) " (encrypted)" else ""}"
+
+    private fun unloadTabsName(minutes: Int) = when {
+        minutes <= 0 -> "Keep background tabs loaded"
+        minutes < 60 -> "Unload background tabs after $minutes minutes"
+        minutes == 60 -> "Unload background tabs after 1 hour"
+        minutes % 60 == 0 -> "Unload background tabs after ${minutes / 60} hours"
+        else -> "Unload background tabs after $minutes minutes"
+    }
+
+    private fun autoplayName(policy: String) = when (policy) {
+        "allow-audio-and-video" -> "Allowed"
+        "block-audio-and-video" -> "Blocked"
+        else -> "Muted only"
+    }
+
+    private fun showSettingsList(title: String, entries: Array<String>, onBack: () -> Unit = { showSettings() }, onPick: (Int) -> Unit) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(title)
+            .setItems(entries) { _, which -> onPick(which) }
+            .setNegativeButton("Back") { _, _ -> onBack() }
+            .show()
+    }
+
+    private fun showContentBlockingSettings() {
+        val settings = engineSettings
+        val on = settings.contentBlockingEnabled
+        val host = activeTab?.url?.let { BrowserStore.hostOf(it) }?.takeIf { it.isNotEmpty() && activeTab?.isNewTabPage != true }
+        val allowed = settings.allowedSites
+        val entries = mutableListOf(
+            "Block ads and trackers\n${if (on) "On" else "Off"}",
+            "Filter lists\n${enabledFilterListCount(settings)} on · downloaded and updated daily",
+            "Your own filter lists\n${settings.subscriptions.size.let { if (it == 0) "Subscribe to a list by its address" else "$it lists" }}",
+            "Your own filter rules\n${settings.customFilters.lines().count { it.isNotBlank() }.let { if (it == 0) "None" else "$it rules" }}",
+            "Sites where nothing is blocked\n${if (allowed.isEmpty()) "None" else allowed.joinToString(", ")}",
+        )
+        if (host != null)
+            entries.add(if (host in allowed) "Block on $host again" else "Don't block on $host")
+        showSettingsList("Ad & tracker blocking", entries.toTypedArray()) { which ->
+            when (which) {
+                0 -> {
+                    settings.setContentBlockingEnabled(!on)
+                    showContentBlockingSettings()
+                }
+                1 -> chooseFilterLists()
+                2 -> showFilterListSubscriptions()
+                3 -> editCustomFilters()
+                4 -> showAllowedSites()
+                5 -> {
+                    settings.setAllowedSites(if (host!! in allowed) allowed - host else allowed + host)
+                    activeTab?.view?.impl?.reload()
+                    showContentBlockingSettings()
+                }
+            }
+        }
+    }
+
+    private fun chooseFilterLists() {
+        val settings = engineSettings
+        val lists = EngineSettings.BUILT_IN_LISTS
+        val current = settings.builtInLists
+        val labels = lists.map { (_, name, isLanguage) -> if (isLanguage) "Websites in $name" else name }.toTypedArray()
+        val checked = lists.map { current[it.first] == true }.toBooleanArray()
+        val original = checked.copyOf()
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Filter lists")
+            .setMultiChoiceItems(labels, checked) { _, which, isChecked -> checked[which] = isChecked }
+            .setPositiveButton("Done") { _, _ ->
+                var addedList = false
+                for (index in lists.indices) {
+                    if (checked[index] == original[index])
+                        continue
+                    settings.setBuiltInList(lists[index].first, checked[index])
+                    addedList = addedList || checked[index]
+                }
+                if (addedList)
+                    settings.downloadFilterLists()
+                showContentBlockingSettings()
+            }
+            .setNegativeButton(android.R.string.cancel) { _, _ -> showContentBlockingSettings() }
+            .show()
+    }
+
+    private fun showFilterListSubscriptions() {
+        val settings = engineSettings
+        val subscriptions = settings.subscriptions
+        val entries = (listOf("Subscribe to a list…") + subscriptions.map { "${it.url}\n${if (it.enabled) "On" else "Off"}" }).toTypedArray()
+        showSettingsList("Your own filter lists", entries, { showContentBlockingSettings() }) { which ->
+            if (which == 0) {
+                promptForText("Subscribe to a filter list", "Address of the list (https://…)", "") { url ->
+                    val trimmed = url.trim()
+                    if (!trimmed.startsWith("https://") && !trimmed.startsWith("http://")) {
+                        Toast.makeText(this, "The address must start with https://", Toast.LENGTH_LONG).show()
+                    } else if (subscriptions.none { it.url == trimmed }) {
+                        val identifier = "android-" + Integer.toHexString(trimmed.hashCode()).trimStart('-')
+                        settings.setSubscriptions(subscriptions + EngineSettings.Subscription(identifier, trimmed, true))
+                        settings.downloadFilterLists()
+                    }
+                    showFilterListSubscriptions()
+                }
+                return@showSettingsList
+            }
+            val subscription = subscriptions[which - 1]
+            MaterialAlertDialogBuilder(this)
+                .setTitle(subscription.url)
+                .setItems(arrayOf(if (subscription.enabled) "Turn off" else "Turn on", "Remove")) { _, action ->
+                    val updated = when (action) {
+                        0 -> subscriptions.map { if (it == subscription) it.copy(enabled = !it.enabled) else it }
+                        else -> subscriptions - subscription
+                    }
+                    settings.setSubscriptions(updated)
+                    if (action == 0 && !subscription.enabled)
+                        settings.downloadFilterLists()
+                    showFilterListSubscriptions()
+                }
+                .setNegativeButton(android.R.string.cancel) { _, _ -> showFilterListSubscriptions() }
+                .show()
+        }
+    }
+
+    private fun editCustomFilters() {
+        val settings = engineSettings
+        val field = EditText(this).apply {
+            setText(settings.customFilters)
+            hint = "One rule per line, as in Adblock Plus lists,\nsuch as ||ads.example.com^ or example.com##.banner"
+            minLines = 6
+            gravity = Gravity.TOP or Gravity.START
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            typeface = android.graphics.Typeface.MONOSPACE
+            textSize = 13f
+        }
+        val container = FrameLayout(this).apply {
+            setPadding(dp(20), dp(8), dp(20), 0)
+            addView(field)
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Your own filter rules")
+            .setView(container)
+            .setPositiveButton("Save") { _, _ ->
+                settings.setCustomFilters(field.text.toString().trimEnd())
+                showContentBlockingSettings()
+            }
+            .setNegativeButton(android.R.string.cancel) { _, _ -> showContentBlockingSettings() }
+            .show()
+    }
+
+    private fun showAllowedSites() {
+        val settings = engineSettings
+        val sites = settings.allowedSites
+        if (sites.isEmpty()) {
+            Toast.makeText(this, "Nothing is blocked only on sites you add from this menu", Toast.LENGTH_SHORT).show()
+            showContentBlockingSettings()
+            return
+        }
+        showSettingsList("Tap a site to block on it again", sites.toTypedArray(), { showContentBlockingSettings() }) { which ->
+            settings.setAllowedSites(sites - sites[which])
+            showAllowedSites()
+        }
+    }
+
+    private fun showPrivacySettings() {
+        val settings = engineSettings
+        val dns = settings.dnsServer
+        val entries = mutableListOf(
+            "Global Privacy Control\nTell websites not to sell or share your data · ${if (settings.globalPrivacyControl) "On" else "Off"}",
+            "DNS server\n${dns?.let { dnsServerName(it) } ?: "System DNS"}",
+        )
+        if (dns != null)
+            entries.add("Check DNSSEC signatures\n${if (dns.dnssec) "On" else "Off"}")
+        showSettingsList("Privacy & security", entries.toTypedArray()) { which ->
+            when (which) {
+                0 -> {
+                    settings.setGlobalPrivacyControl(!settings.globalPrivacyControl)
+                    showPrivacySettings()
+                }
+                1 -> chooseDnsServer()
+                2 -> {
+                    settings.setDnsServer(dns!!.copy(dnssec = !dns.dnssec))
+                    showPrivacySettings()
+                }
+            }
+        }
+    }
+
+    private fun chooseDnsServer() {
+        val settings = engineSettings
+        val current = settings.dnsServer
+        val labels = (listOf("System DNS") + DNS_PRESETS.map { it.first } + listOf("Custom server…")).toTypedArray()
+        val selected = when {
+            current == null -> 0
+            else -> DNS_PRESETS.indexOfFirst { it.second == current.copy(dnssec = false) }.let { if (it >= 0) it + 1 else labels.size - 1 }
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("DNS server")
+            .setSingleChoiceItems(labels, selected) { dialog, which ->
+                dialog.dismiss()
+                when (which) {
+                    0 -> settings.setDnsServer(null)
+                    labels.size - 1 -> {
+                        promptForText("Custom DNS server", "Address, such as 1.1.1.1 or 1.1.1.1:853", current?.let { "${it.server}:${it.port}" } ?: "") { text ->
+                            val server = text.trim().substringBeforeLast(':').ifEmpty { text.trim() }
+                            val port = text.trim().substringAfterLast(':', "").toIntOrNull()
+                            if (server.isNotEmpty()) {
+                                val overTls = port == null || port == 853
+                                settings.setDnsServer(EngineSettings.DnsServer(server, port ?: 853, overTls, current?.dnssec ?: false))
+                            }
+                            showPrivacySettings()
+                        }
+                        return@setSingleChoiceItems
+                    }
+                    else -> settings.setDnsServer(DNS_PRESETS[which - 1].second.copy(dnssec = current?.dnssec ?: false))
+                }
+                showPrivacySettings()
+            }
+            .setNegativeButton(android.R.string.cancel) { _, _ -> showPrivacySettings() }
+            .show()
+    }
+
+    private fun showTabSettings() {
+        val settings = engineSettings
+        val processes = mapOf("perTab" to "Never", "perOrigin" to "Same subdomain", "perSite" to "Same site")
+        val entries = arrayOf(
+            "Unload tabs you haven't looked at\n${unloadTabsName(settings.unloadTabsAfterMinutes)}. A tab reloads when you return to it.",
+            "Let tabs share a process\n${processes[settings.tabProcesses] ?: settings.tabProcesses}. Shared processes use less memory, but crash together.",
+        )
+        showSettingsList("Tabs", entries) { which ->
+            when (which) {
+                0 -> {
+                    val minutes = intArrayOf(0, 30, 60, 120, 240, 480)
+                    val labels = arrayOf("Never", "After 30 minutes", "After 1 hour", "After 2 hours", "After 4 hours", "After 8 hours")
+                    MaterialAlertDialogBuilder(this)
+                        .setTitle("Unload tabs you haven't looked at")
+                        .setSingleChoiceItems(labels, minutes.indexOf(settings.unloadTabsAfterMinutes)) { dialog, picked ->
+                            dialog.dismiss()
+                            settings.setUnloadTabsAfterMinutes(minutes[picked])
+                            showTabSettings()
+                        }
+                        .setNegativeButton(android.R.string.cancel) { _, _ -> showTabSettings() }
+                        .show()
+                }
+                1 -> {
+                    val values = processes.keys.toList()
+                    MaterialAlertDialogBuilder(this)
+                        .setTitle("Let tabs share a process")
+                        .setSingleChoiceItems(processes.values.toTypedArray(), values.indexOf(settings.tabProcesses)) { dialog, picked ->
+                            dialog.dismiss()
+                            settings.setTabProcesses(values[picked])
+                            showTabSettings()
+                        }
+                        .setNegativeButton(android.R.string.cancel) { _, _ -> showTabSettings() }
+                        .show()
+                }
+            }
+        }
+    }
+
+    private fun showSiteSettings() {
+        val settings = engineSettings
+        showSettingsList("Site settings", arrayOf("Autoplay\n${autoplayName(settings.autoplayPolicy)}")) {
+            val values = arrayOf("allow-audio-and-video", "block-audio", "block-audio-and-video")
+            val labels = arrayOf("Allow audio and video", "Allow only muted video", "Block audio and video")
+            MaterialAlertDialogBuilder(this)
+                .setTitle("Autoplay")
+                .setSingleChoiceItems(labels, values.indexOf(settings.autoplayPolicy)) { dialog, picked ->
+                    dialog.dismiss()
+                    settings.setAutoplayPolicy(values[picked])
+                    showSiteSettings()
+                }
+                .setNegativeButton(android.R.string.cancel) { _, _ -> showSiteSettings() }
+                .show()
+        }
+    }
+
+    private fun promptForText(title: String, hint: String, initial: String, onDone: (String) -> Unit) {
+        val field = EditText(this).apply {
+            setText(initial)
+            this.hint = hint
+            isSingleLine = true
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+        }
+        val container = FrameLayout(this).apply {
+            setPadding(dp(20), dp(8), dp(20), 0)
+            addView(field)
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(title)
+            .setView(container)
+            .setPositiveButton(android.R.string.ok) { _, _ -> onDone(field.text.toString()) }
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
@@ -1768,6 +2077,11 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
     ): Boolean
 
     private external fun setDarkMode(dark: Boolean)
+    private external fun nativeSettingsJson(): String
+    private external fun nativeUpdateSettings(changes: String)
+
+    /** The engine's own settings, which the Hub keeps, as on desktop. */
+    private val engineSettings by lazy { EngineSettings({ nativeSettingsJson() }, { nativeUpdateSettings(it) }) }
 
     private external fun disposeNativeCode()
     private external fun execMainEventLoop()
@@ -1777,5 +2091,12 @@ class LadybirdActivity : AppCompatActivity(), TabHost {
         init {
             System.loadLibrary("Ladybird")
         }
+
+        /** Public DNS resolvers that answer over TLS, by the addresses their certificates name. */
+        private val DNS_PRESETS = listOf(
+            "Cloudflare (1.1.1.1, encrypted)" to EngineSettings.DnsServer("1.1.1.1", 853, overTls = true, dnssec = false),
+            "Quad9 (9.9.9.9, encrypted)" to EngineSettings.DnsServer("9.9.9.9", 853, overTls = true, dnssec = false),
+            "Google (8.8.8.8, encrypted)" to EngineSettings.DnsServer("8.8.8.8", 853, overTls = true, dnssec = false),
+        )
     }
 }

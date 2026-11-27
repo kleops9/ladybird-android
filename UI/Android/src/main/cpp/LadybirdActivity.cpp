@@ -103,6 +103,8 @@ extern "C" JNIEXPORT jboolean JNICALL Java_org_serenityos_ladybird_LadybirdActiv
 extern "C" JNIEXPORT void JNICALL Java_org_serenityos_ladybird_LadybirdActivity_execMainEventLoop(JNIEnv*, jobject);
 extern "C" JNIEXPORT void JNICALL Java_org_serenityos_ladybird_LadybirdActivity_disposeNativeCode(JNIEnv*, jobject);
 extern "C" JNIEXPORT void JNICALL Java_org_serenityos_ladybird_LadybirdActivity_setDarkMode(JNIEnv*, jobject, jboolean);
+extern "C" JNIEXPORT jstring JNICALL Java_org_serenityos_ladybird_LadybirdActivity_nativeSettingsJson(JNIEnv*, jobject);
+extern "C" JNIEXPORT void JNICALL Java_org_serenityos_ladybird_LadybirdActivity_nativeUpdateSettings(JNIEnv*, jobject, jstring);
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_org_serenityos_ladybird_LadybirdActivity_initNativeCode(JNIEnv* env, jobject thiz, jstring native_library_dir, jstring resource_dir, jstring data_dir, jstring cache_dir, jstring downloads_dir, jstring certificates_path, jstring tag_name, jobject timer_service, jboolean dark_mode)
@@ -205,4 +207,23 @@ Java_org_serenityos_ladybird_LadybirdActivity_setDarkMode(JNIEnv*, jobject, jboo
         set_force_dark(dark_mode);
     }
     Ladybird::RemoteViewAndroid::set_websites_prefer_dark(dark_mode);
+}
+
+// The engine's settings, which the Hub keeps, as JSON.
+extern "C" JNIEXPORT jstring JNICALL
+Java_org_serenityos_ladybird_LadybirdActivity_nativeSettingsJson(JNIEnv* env, jobject)
+{
+    ByteString json = s_hub_connection ? s_hub_connection->settings_json() : ByteString { "{}"sv };
+    Ladybird::JavaEnvironment java { global_vm };
+    (void)env;
+    return java.jstring_from_ak_string(MUST(String::from_byte_string(json)));
+}
+
+// Changes to the engine's settings, as JSON with the members to change. The Hub merges them into its settings.
+extern "C" JNIEXPORT void JNICALL
+Java_org_serenityos_ladybird_LadybirdActivity_nativeUpdateSettings(JNIEnv* env, jobject, jstring changes)
+{
+    if (!s_hub_connection)
+        return;
+    s_hub_connection->async_update_settings(s_next_settings_change_id++, byte_string_from_jstring(env, changes));
 }

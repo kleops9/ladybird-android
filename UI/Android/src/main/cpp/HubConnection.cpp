@@ -91,6 +91,7 @@ ErrorOr<NonnullRefPtr<HubConnection>> HubConnection::launch(ByteString const& na
     if (state.is_error())
         return Error::from_string_literal("The Hub ended before it answered");
     connection->m_initial_state = state.release_value();
+    connection->m_settings_json = connection->m_initial_state.settings_json;
     connection->m_did_initialize = true;
     connection->set_peer_owns_this_process(true);
     connection->async_ui_did_start();
@@ -103,6 +104,11 @@ void HubConnection::die()
     warnln("Lost the connection to the Hub");
     if (m_did_initialize)
         Core::Process::terminate_immediately(1);
+}
+
+void HubConnection::settings_changed(ByteString settings_json, u64)
+{
+    m_settings_json = move(settings_json);
 }
 
 void HubConnection::app_open_url_in_new_tab(URL::URL url, Web::HTML::ActivateTab activate_tab, Optional<u64>, WebView::IsPrivate is_private)

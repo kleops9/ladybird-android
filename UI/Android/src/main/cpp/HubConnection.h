@@ -31,9 +31,13 @@ public:
 
     Hub::InitialState const& initial_state() const { return m_initial_state; }
 
+    // The Hub's settings as JSON, as of its last word on them.
+    ByteString const& settings_json() const { return m_settings_json; }
+
 private:
     virtual void die() override;
 
+    virtual void settings_changed(ByteString, u64) override;
     virtual void app_open_url_in_new_tab(URL::URL, Web::HTML::ActivateTab, Optional<u64>, WebView::IsPrivate) override;
     virtual void app_open_view_in_new_tab(u64, Optional<u64>, WebView::IsPrivate, Web::HTML::ActivateTab) override;
     virtual void app_set_clipboard_text(String, WebView::Application::ClipboardType) override;
@@ -72,6 +76,7 @@ private:
     virtual void view_web_content_crashed(u64, WebView::ViewImplementation::WebContentCrashReason) override;
 
     Hub::InitialState m_initial_state;
+    ByteString m_settings_json;
     bool m_did_initialize { false };
 };
 
